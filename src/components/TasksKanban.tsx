@@ -7,6 +7,7 @@ import type { TaskDetails } from '@/lib/notion';
 import type { Task } from '@/lib/tasks';
 import { AddModelForm, type AvailableToAdd } from '@/components/AddModelForm';
 import { useAlertConfirm } from '@/components/AlertConfirmProvider';
+import { sanitizeAgentFallbacks } from '@/lib/agent-models';
 
 type TaskUpdatePayload = {
     status?: TaskStatus; agent?: string; important?: boolean; urgent?: boolean; dueDate?: string | null; description?: string;
@@ -182,6 +183,23 @@ export function TasksKanban({ initialTasks, initialAgentOptions = [], notionEnab
     const [hideRecurringInDoing, setHideRecurringInDoing] = useState(false);
     const [cronSyncLoading, setCronSyncLoading] = useState<Set<string>>(new Set());
     const prevOpenTaskStatusRef = useRef<{ id: string | null; status: TaskStatus | null }>({ id: null, status: null });
+
+    const getInlineCreateFallbackOptions = useCallback((index: number) => {
+        const selectedElsewhere = new Set(
+            newAgentForm.fallbacks.filter((_, i) => i !== index).filter(Boolean)
+        );
+        return availableModels.filter((m) => {
+            if (m === newAgentForm.model) return false;
+            const current = index >= 0 ? newAgentForm.fallbacks[index] : undefined;
+            if (current === m) return true;
+            return !selectedElsewhere.has(m);
+        });
+    }, [availableModels, newAgentForm.fallbacks, newAgentForm.model]);
+
+    const inlineCreatePrimaryOptions = availableModels.filter(
+        (m) => m === newAgentForm.model || !newAgentForm.fallbacks.includes(m)
+    );
+    const canAddInlineFallback = getInlineCreateFallbackOptions(-1).length > 0;
 
     const fetchTaskDetails = useCallback(async (taskId: string) => {
         const res = await fetch(`/api/notion/tasks/${encodeURIComponent(taskId)}/content`);
@@ -788,13 +806,14 @@ const openCreateModal = async () => {
         if (!name || !newAgentForm.model) return;
         setNewAgentSaving(true);
         try {
+            const sanitizedFallbacks = sanitizeAgentFallbacks(newAgentForm.model, newAgentForm.fallbacks);
             const res = await fetch('/api/openclaw/agent', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     name,
                     model: newAgentForm.model,
-                    fallbacks: newAgentForm.fallbacks,
+                    fallbacks: sanitizedFallbacks,
                 }),
             });
             if (res.ok) {
@@ -1676,7 +1695,11 @@ const openCreateModal = async () => {
                                         const d = await res.json().catch(() => ({}));
                                         if (res.ok && Array.isArray(d.availableModels)) {
                                             setAvailableModels(d.availableModels);
-                                            setNewAgentForm((f) => ({ ...f, model: newModelId }));
+                                            setNewAgentForm((f) => ({
+                                                ...f,
+                                                model: newModelId,
+                                                fallbacks: sanitizeAgentFallbacks(newModelId, f.fallbacks),
+                                            }));
                                         }
                                     }
                                     router.refresh();
@@ -1722,10 +1745,17 @@ const openCreateModal = async () => {
                                     <select
                                         className="form-input"
                                         value={newAgentForm.model}
-                                        onChange={(e) => setNewAgentForm((f) => ({ ...f, model: e.target.value }))}
+                                        onChange={(e) => {
+                                            const nextPrimary = e.target.value;
+                                            setNewAgentForm((f) => ({
+                                                ...f,
+                                                model: nextPrimary,
+                                                fallbacks: sanitizeAgentFallbacks(nextPrimary, f.fallbacks),
+                                            }));
+                                        }}
                                         required
                                     >
-                                        {availableModels.map((m) => (
+                                        {inlineCreatePrimaryOptions.map((m) => (
                                             <option key={m} value={m}>{m}</option>
                                         ))}
                                     </select>
@@ -1736,7 +1766,12 @@ const openCreateModal = async () => {
                                         <button
                                             type="button"
                                             className="btn-add-fallback"
-                                            onClick={() => setNewAgentForm((f) => ({ ...f, fallbacks: [...f.fallbacks, availableModels[0] || ''] }))}
+                                            onClick={() => {
+                                                const nextOption = getInlineCreateFallbackOptions(-1)[0];
+                                                if (!nextOption) return;
+                                                setNewAgentForm((f) => ({ ...f, fallbacks: [...f.fallbacks, nextOption] }));
+                                            }}
+                                            disabled={!canAddInlineFallback}
                                         >
                                             + Add
                                         </button>
@@ -1753,10 +1788,10 @@ const openCreateModal = async () => {
                                                 onChange={(e) => {
                                                     const next = [...newAgentForm.fallbacks];
                                                     next[index] = e.target.value;
-                                                    setNewAgentForm((f) => ({ ...f, fallbacks: next }));
+                                                    setNewAgentForm((f) => ({ ...f, fallbacks: sanitizeAgentFallbacks(f.model, next) }));
                                                 }}
                                             >
-                                                {availableModels.map((m) => (
+                                                {getInlineCreateFallbackOptions(index).map((m) => (
                                                     <option key={m} value={m}>{m}</option>
                                                 ))}
                                             </select>

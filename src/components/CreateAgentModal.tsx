@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { AddModelForm, type AvailableToAdd } from '@/components/AddModelForm';
 import { useAlertConfirm } from '@/components/AlertConfirmProvider';
+import { sanitizeAgentFallbacks } from '@/lib/agent-models';
 
 export function CreateAgentModal({
     availableModels,
@@ -39,13 +40,15 @@ export function CreateAgentModal({
     };
 
     const handleAddFallback = () => {
-        setFallbacks([...fallbacks, availableModels[0] || '']);
+        const nextOption = getAvailableFallbackOptions(-1)[0];
+        if (!nextOption) return;
+        setFallbacks([...fallbacks, nextOption]);
     };
 
     const handleUpdateFallback = (index: number, val: string) => {
         const newF = [...fallbacks];
         newF[index] = val;
-        setFallbacks(newF);
+        setFallbacks(sanitizeAgentFallbacks(model, newF));
     };
 
     const handleRemoveFallback = (index: number) => {
@@ -56,10 +59,11 @@ export function CreateAgentModal({
         e.preventDefault();
         setIsSaving(true);
         try {
+            const sanitizedFallbacks = sanitizeAgentFallbacks(model, fallbacks);
             const res = await fetch('/api/openclaw/agent', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name, model, fallbacks })
+                body: JSON.stringify({ name, model, fallbacks: sanitizedFallbacks })
             });
             if (res.ok) {
                 const data = await res.json().catch(() => ({}));
@@ -74,6 +78,21 @@ export function CreateAgentModal({
             setIsSaving(false);
         }
     };
+
+    const getAvailableFallbackOptions = (index: number) => {
+        const selectedElsewhere = new Set(
+            fallbacks.filter((_, i) => i !== index).map((f) => f).filter(Boolean)
+        );
+        return availableModels.filter((m) => {
+            if (m === model) return false;
+            const current = index >= 0 ? fallbacks[index] : undefined;
+            if (current === m) return true;
+            return !selectedElsewhere.has(m);
+        });
+    };
+
+    const primaryOptions = availableModels.filter((m) => m === model || !fallbacks.includes(m));
+    const canAddFallback = getAvailableFallbackOptions(-1).length > 0;
 
     const openAddModel = async () => {
         try {
@@ -130,17 +149,21 @@ export function CreateAgentModal({
                                     <select
                                         className="form-select"
                                         value={model}
-                                        onChange={(e) => setModel(e.target.value)}
+                                        onChange={(e) => {
+                                            const nextPrimary = e.target.value;
+                                            setModel(nextPrimary);
+                                            setFallbacks((prev) => sanitizeAgentFallbacks(nextPrimary, prev));
+                                        }}
                                         required
                                     >
-                                        {availableModels.map(m => <option key={m} value={m}>{m}</option>)}
+                                        {primaryOptions.map(m => <option key={m} value={m}>{m}</option>)}
                                     </select>
                                 </div>
 
                                 <div className="form-group form-group-fallbacks">
                                     <div className="fallbacks-header">
                                         <label className="form-label">Fallback Models</label>
-                                        <button type="button" className="btn-add-fallback" onClick={handleAddFallback}>
+                                        <button type="button" className="btn-add-fallback" onClick={handleAddFallback} disabled={!canAddFallback}>
                                             + Add
                                         </button>
                                     </div>
@@ -157,7 +180,7 @@ export function CreateAgentModal({
                                                 value={fb}
                                                 onChange={(e) => handleUpdateFallback(index, e.target.value)}
                                             >
-                                                {availableModels.map(m => <option key={m} value={m}>{m}</option>)}
+                                                {getAvailableFallbackOptions(index).map(m => <option key={m} value={m}>{m}</option>)}
                                             </select>
                                             <button type="button" className="btn-remove-fallback" onClick={() => handleRemoveFallback(index)}>
                                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
@@ -180,7 +203,10 @@ export function CreateAgentModal({
                                 availableToAdd={availableToAdd}
                                 backLabel="Back"
                                 onSuccess={(newModelId) => {
-                                    if (newModelId) setModel(newModelId);
+                                    if (newModelId) {
+                                        setModel(newModelId);
+                                        setFallbacks((prev) => sanitizeAgentFallbacks(newModelId, prev));
+                                    }
                                     setView('create');
                                     router.refresh();
                                 }}

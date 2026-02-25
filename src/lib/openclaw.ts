@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
+import { sanitizeAgentFallbacks } from '@/lib/agent-models';
 
 export interface Skill {
     name: string;
@@ -207,6 +208,7 @@ export function createAgent(name: string, model: string, fallbacks?: string[]): 
     const defaultPrimary = (config as any).agents?.defaults?.model?.primary;
     const defaultModels = Object.keys((config as any).agents?.defaults?.models || {});
     const primary = (model && model.trim()) || defaultPrimary || defaultModels[0] || '';
+    const sanitizedFallbacks = sanitizeAgentFallbacks(primary, fallbacks);
 
     fs.mkdirSync(path.join(agentDir, 'sessions'), { recursive: true });
     fs.mkdirSync(path.join(agentDir, 'agent'), { recursive: true });
@@ -221,7 +223,7 @@ export function createAgent(name: string, model: string, fallbacks?: string[]): 
         id,
         model: {
             primary,
-            fallbacks: Array.isArray(fallbacks) && fallbacks.length > 0 ? fallbacks : undefined,
+            fallbacks: sanitizedFallbacks.length > 0 ? sanitizedFallbacks : undefined,
         },
         identity: { name },
     });
