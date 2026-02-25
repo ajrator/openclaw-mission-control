@@ -181,6 +181,7 @@ export function TasksKanban({ initialTasks, initialAgentOptions = [], notionEnab
     const [viewMode, setViewMode] = useState<'kanban' | 'matrix' | 'recurring'>('kanban');
     const [hideDoneInMatrix, setHideDoneInMatrix] = useState(true);
     const [hideRecurringInDoing, setHideRecurringInDoing] = useState(false);
+    const [collapsedKanbanColumns, setCollapsedKanbanColumns] = useState<Set<TaskStatus>>(new Set());
     const [cronSyncLoading, setCronSyncLoading] = useState<Set<string>>(new Set());
     const prevOpenTaskStatusRef = useRef<{ id: string | null; status: TaskStatus | null }>({ id: null, status: null });
 
@@ -827,6 +828,15 @@ export function TasksKanban({ initialTasks, initialAgentOptions = [], notionEnab
         }
     };
 
+    const toggleKanbanColumnCollapsed = (column: TaskStatus) => {
+        setCollapsedKanbanColumns((prev) => {
+            const next = new Set(prev);
+            if (next.has(column)) next.delete(column);
+            else next.add(column);
+            return next;
+        });
+    };
+
 const openCreateModal = async () => {
         setCreateOpen(true);
         setCreateStep('task');
@@ -1449,6 +1459,7 @@ const openCreateModal = async () => {
                     const columnTasks = col.key === 'Doing' && hideRecurringInDoing
                         ? (byStatus[col.key] ?? []).filter((t) => !t.recurring)
                         : (byStatus[col.key] ?? []);
+                    const isCollapsed = collapsedKanbanColumns.has(col.key);
                     return (
                     <div
                         key={col.key}
@@ -1458,7 +1469,17 @@ const openCreateModal = async () => {
                         onDrop={(e) => handleDrop(e, col.key)}
                     >
                         <div className="kanban-column-header">
-                            <span className="kanban-column-title">{col.label}</span>
+                            <button
+                                type="button"
+                                className="kanban-column-title-btn"
+                                onClick={() => toggleKanbanColumnCollapsed(col.key)}
+                                aria-expanded={!isCollapsed}
+                                aria-controls={`kanban-column-${col.key.replace(/\s+/g, '-').toLowerCase()}`}
+                                title={isCollapsed ? `Expand ${col.label}` : `Collapse ${col.label}`}
+                            >
+                                <span className="kanban-column-title">{col.label}</span>
+                                <span className={`kanban-column-chevron ${isCollapsed ? 'is-collapsed' : ''}`} aria-hidden>▾</span>
+                            </button>
                             <div className="kanban-column-header-right">
                                 {col.key === 'Doing' && (
                                     <label className="kanban-doing-hide-recurring" title="Hide recurring tasks in this column">
@@ -1476,27 +1497,32 @@ const openCreateModal = async () => {
                                 </span>
                             </div>
                         </div>
-                        <div className="kanban-column-cards">
-                            {columnTasks.map((task) => (
-                                <KanbanCard
-                                    key={task.id}
-                                    task={task}
-                                    agentOptions={agentOptions}
-                                    isSelected={selectedIds.has(task.id)}
-                                    isDeleting={deletingIds.has(task.id)}
-                                    onToggleSelect={() => toggleSelect(task.id)}
-                                    onClick={() => openTaskModal(task)}
-                                    onArchive={() => archiveTask(task.id)}
-                                    onUpdate={(payload) => updateTaskFromCard(task.id, payload)}
-                                    onDragStart={(e) => handleDragStart(e, task)}
-                                    onStart={() => startTask(task.id, task.agent)}
-                                    onStop={() => stopTask(task.id, task.agent)}
-                                    isStartLoading={taskStartLoading.has(task.id)}
-                                    isStopLoading={taskStopLoading.has(task.id)}
-                                    pausedTaskIds={pausedTaskIds}
-                                />
-                            ))}
-                        </div>
+                        {!isCollapsed && (
+                            <div
+                                id={`kanban-column-${col.key.replace(/\s+/g, '-').toLowerCase()}`}
+                                className="kanban-column-cards"
+                            >
+                                {columnTasks.map((task) => (
+                                    <KanbanCard
+                                        key={task.id}
+                                        task={task}
+                                        agentOptions={agentOptions}
+                                        isSelected={selectedIds.has(task.id)}
+                                        isDeleting={deletingIds.has(task.id)}
+                                        onToggleSelect={() => toggleSelect(task.id)}
+                                        onClick={() => openTaskModal(task)}
+                                        onArchive={() => archiveTask(task.id)}
+                                        onUpdate={(payload) => updateTaskFromCard(task.id, payload)}
+                                        onDragStart={(e) => handleDragStart(e, task)}
+                                        onStart={() => startTask(task.id, task.agent)}
+                                        onStop={() => stopTask(task.id, task.agent)}
+                                        isStartLoading={taskStartLoading.has(task.id)}
+                                        isStopLoading={taskStopLoading.has(task.id)}
+                                        pausedTaskIds={pausedTaskIds}
+                                    />
+                                ))}
+                            </div>
+                        )}
                     </div>
                     );
                 })}

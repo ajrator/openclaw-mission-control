@@ -113,6 +113,10 @@ export function Sidebar({
     }, [mobileOpen, onRequestClose]);
 
     const toggleCollapsed = () => {
+        if (mobileOpen) {
+            onRequestClose?.();
+            return;
+        }
         setCollapsed((prev) => {
             const next = !prev;
             try {
@@ -138,8 +142,8 @@ export function Sidebar({
                     type="button"
                     className="sidebar-toggle"
                     onClick={toggleCollapsed}
-                    title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-                    aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+                    title={mobileOpen ? 'Close sidebar' : (collapsed ? 'Expand sidebar' : 'Collapse sidebar')}
+                    aria-label={mobileOpen ? 'Close sidebar' : (collapsed ? 'Expand sidebar' : 'Collapse sidebar')}
                 >
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                         {collapsed ? (

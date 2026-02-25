@@ -1367,8 +1367,20 @@ details[open] > summary .details-chevron {
   @apply flex items-center justify-between gap-2 mb-4;
 }
 
+.kanban-column-title-btn {
+  @apply inline-flex items-center gap-1.5 min-w-0 border-none bg-transparent p-0 cursor-pointer text-left;
+}
+
 .kanban-column-title {
   @apply font-semibold text-foreground dark:text-foreground-dark text-sm;
+}
+
+.kanban-column-chevron {
+  @apply inline-flex items-center justify-center w-6 h-6 rounded-md text-sm font-semibold text-foreground dark:text-foreground-dark bg-muted/60 dark:bg-muted-dark/60 border border-border/70 dark:border-border-dark/70 transition-transform duration-200;
+}
+
+.kanban-column-chevron.is-collapsed {
+  transform: rotate(-90deg);
 }
 
 .kanban-column-header-right {
@@ -1385,6 +1397,14 @@ details[open] > summary .details-chevron {
 
 .kanban-column-cards {
   @apply flex flex-col gap-3 flex-1 min-h-[100px];
+}
+
+.kanban-column-cards-collapsed {
+  @apply min-h-0;
+}
+
+.kanban-column:has(.kanban-column-title-btn[aria-expanded="false"]) {
+  @apply flex-none;
 }
 
 .kanban-card {
@@ -1758,7 +1778,11 @@ details[open] > summary .details-chevron {
   }
 
   .sidebar {
-    @apply fixed left-0 top-0 bottom-0 z-[60] w-[18rem] max-w-[85vw] border-r shadow-none translate-x-[-105%] transition-transform duration-200;
+    @apply fixed left-0 top-0 bottom-0 z-[60] w-[18rem] max-w-[85vw] border-r shadow-none translate-x-[-105%] transition-transform duration-300 ease-out;
+  }
+
+  .sidebar.sidebar--mobile-open {
+    transform: translateX(0);
   }
 
   .sidebar.sidebar--collapsed {
@@ -1921,7 +1945,7 @@ details[open] > summary .details-chevron {
   }
 
   .tasks-select-all {
-    @apply ml-auto;
+    @apply ml-auto w-full text-right;
   }
 
   .eisenhower-matrix-toolbar {
@@ -1937,11 +1961,23 @@ details[open] > summary .details-chevron {
   }
 
   .kanban-board {
-    @apply gap-3 pb-3 snap-x snap-mandatory;
+    @apply flex-col gap-3 pb-3 overflow-x-visible snap-none;
   }
 
   .kanban-column {
-    @apply min-w-[86vw] p-3 snap-start;
+    @apply min-w-0 w-full basis-auto p-3;
+  }
+
+  .kanban-column-header {
+    @apply mb-2;
+  }
+
+  .kanban-column-title-btn {
+    @apply flex-1;
+  }
+
+  .kanban-column-cards {
+    @apply min-h-0;
   }
 
   .kanban-card {
@@ -2088,8 +2124,65 @@ details[open] > summary .details-chevron {
     @apply p-2;
   }
 
+  .models-table-wrap {
+    @apply overflow-visible border-0 bg-transparent;
+  }
+
+  .models-table {
+    @apply min-w-0;
+  }
+
+  .models-table thead {
+    @apply hidden;
+  }
+
+  .models-table tbody,
+  .models-table tr,
+  .models-table td {
+    display: block;
+    width: 100%;
+  }
+
+  .models-table tbody {
+    @apply flex flex-col gap-3;
+  }
+
+  .models-table tr {
+    @apply rounded-cleo-lg border border-border dark:border-border-dark bg-card dark:bg-card-dark overflow-hidden;
+  }
+
+  .models-table tr:last-child td {
+    @apply border-b border-border dark:border-border-dark;
+  }
+
+  .models-table tr:last-child td:last-child {
+    @apply border-b-0;
+  }
+
+  .models-table td {
+    @apply border-b border-border dark:border-border-dark;
+  }
+
+  .models-table td::before {
+    @apply block text-[11px] uppercase tracking-wide font-medium text-muted-foreground dark:text-muted-foreground-dark mb-1;
+    content: '';
+  }
+
+  .models-table td:nth-child(1)::before { content: 'Model'; }
+  .models-table td:nth-child(2)::before { content: 'Provider'; }
+  .models-table td:nth-child(3)::before { content: 'Usage & platform'; }
+  .models-table td:nth-child(4)::before { content: 'Actions'; }
+
+  .model-link-btn {
+    @apply w-full justify-center;
+  }
+
   .model-actions-cell {
-    @apply flex-wrap;
+    @apply flex-wrap justify-end;
+  }
+
+  .model-delete-btn {
+    @apply ml-auto;
   }
 
   .onboarding-full .page,
