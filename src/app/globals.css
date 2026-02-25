@@ -1,0 +1,1609 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  *,
+  *::before,
+  *::after {
+    @apply box-border m-0 p-0;
+  }
+
+  html,
+  body {
+    @apply h-full;
+  }
+
+  body {
+    @apply font-sans antialiased overflow-x-hidden bg-background text-foreground dark:bg-background-dark dark:text-foreground-dark;
+    padding-left: env(safe-area-inset-left, 0);
+    padding-right: env(safe-area-inset-right, 0);
+  }
+}
+
+/* App shell – Cleopatra layout */
+.app-shell {
+  @apply flex h-screen overflow-hidden bg-background dark:bg-background-dark;
+}
+
+.main-content {
+  @apply flex-1 min-h-0 overflow-y-auto bg-background dark:bg-background-dark;
+}
+
+/* Sidebar – Cleopatra: card bg, border, active primary-tint */
+.sidebar {
+  @apply w-sidebar flex-shrink-0 flex flex-col max-h-screen min-h-0 bg-card dark:bg-card-dark border-r border-border dark:border-border-dark py-5 px-3 gap-2 transition-all duration-200 overflow-x-hidden overflow-y-auto min-w-0;
+}
+
+.sidebar--collapsed {
+  @apply w-sidebar-collapsed p-3;
+}
+
+.sidebar--collapsed .sidebar-logo .logo-text,
+.sidebar--collapsed .sidebar-logo .logo-icon,
+.sidebar--collapsed .nav-section-label,
+.sidebar--collapsed .nav-label,
+.sidebar--collapsed .footer-status .status-text,
+.sidebar--collapsed .theme-toggle-group {
+  @apply hidden;
+}
+
+.sidebar--collapsed .sidebar-logo {
+  @apply justify-center;
+}
+
+.sidebar--collapsed .sidebar-toggle {
+  @apply ml-0 w-9 h-9;
+}
+
+.sidebar--collapsed .nav-item,
+.sidebar--collapsed .sidebar-signout-btn {
+  @apply justify-center p-2.5;
+}
+
+.sidebar-logo {
+  @apply flex items-center gap-2 min-h-0 shrink-0;
+}
+
+.logo-icon {
+  @apply flex items-center justify-center shrink-0 w-9 h-9 rounded-lg bg-primary-light text-primary;
+}
+
+.logo-text {
+  @apply flex flex-col min-w-0;
+}
+
+.logo-name {
+  @apply font-semibold text-foreground dark:text-foreground-dark text-sm truncate;
+}
+
+.logo-sub {
+  @apply text-xs text-muted-foreground dark:text-muted-foreground-dark truncate;
+}
+
+.sidebar-toggle {
+  @apply ml-auto flex items-center justify-center w-8 h-8 rounded-cleo-lg border border-border dark:border-border-dark bg-card dark:bg-card-dark text-muted-foreground dark:text-muted-foreground-dark hover:bg-accent dark:hover:bg-accent-dark hover:text-foreground dark:hover:text-foreground-dark transition-colors shrink-0 cursor-pointer;
+}
+
+.sidebar-nav {
+  @apply flex-1 flex flex-col gap-0.5 min-h-0 overflow-y-auto overflow-x-hidden;
+}
+
+.nav-section-label {
+  @apply px-2.5 py-1.5 text-xs font-medium uppercase tracking-wider text-muted-foreground dark:text-muted-foreground-dark;
+}
+
+.nav-item {
+  @apply relative flex items-center gap-2.5 py-2 px-2.5 rounded-cleo-lg text-[13.5px] font-medium text-foreground dark:text-foreground-dark no-underline transition-all duration-150 cursor-pointer;
+}
+
+.nav-item:hover {
+  @apply bg-accent dark:bg-accent-dark text-accent-foreground dark:text-accent-foreground-dark;
+}
+
+.nav-item.active {
+  @apply bg-primary/10 text-primary border border-primary/20;
+}
+
+.nav-icon {
+  @apply flex items-center shrink-0;
+}
+
+.nav-label {
+  @apply flex-1 truncate;
+}
+
+.nav-indicator {
+  @apply absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 rounded-r-full bg-primary;
+}
+
+.sidebar-signout {
+  @apply pt-2 border-t border-border dark:border-border-dark;
+}
+
+.sidebar-signout-form {
+  @apply block;
+}
+
+.sidebar-signout-btn {
+  @apply w-full flex items-center gap-2.5 py-2 px-2.5 border-none bg-transparent text-[13.5px] font-medium font-sans cursor-pointer rounded-cleo-lg text-left transition-all duration-150 text-muted-foreground dark:text-muted-foreground-dark;
+}
+
+.sidebar-signout-btn:hover {
+  @apply bg-accent dark:bg-accent-dark text-foreground dark:text-foreground-dark;
+}
+
+.sidebar-advanced {
+  @apply mt-auto flex flex-col gap-0.5 pt-2 border-t border-border dark:border-border-dark;
+}
+
+.sidebar-footer {
+  @apply flex items-center justify-between pt-3 border-t border-border dark:border-border-dark px-2.5 pb-1;
+}
+
+.footer-status {
+  @apply flex items-center gap-2;
+}
+
+.status-dot {
+  @apply w-2 h-2 rounded-full bg-success;
+}
+
+.status-text {
+  @apply text-xs text-muted-foreground dark:text-muted-foreground-dark;
+}
+
+.theme-toggle-group {
+  @apply flex items-center bg-accent dark:bg-accent-dark rounded-cleo-lg p-0.5 gap-0.5;
+}
+
+.theme-btn {
+  @apply flex items-center justify-center w-8 h-8 rounded-cleo text-muted-foreground dark:text-muted-foreground-dark hover:text-foreground dark:hover:text-foreground-dark transition-colors border-none bg-transparent cursor-pointer;
+}
+
+.theme-btn.active {
+  @apply bg-card dark:bg-card-dark text-primary;
+}
+
+/* Page layout */
+.page {
+  @apply p-6 md:p-8 max-w-[1600px] mx-auto w-full;
+}
+
+.page.chat-page {
+  @apply max-w-none mx-0;
+}
+
+.page-title {
+  @apply text-2xl font-bold text-foreground dark:text-foreground-dark mb-1 tracking-tight;
+}
+
+.page-subtitle {
+  @apply text-sm text-muted-foreground dark:text-muted-foreground-dark font-normal;
+}
+
+.page-header {
+  @apply flex flex-wrap items-start justify-between gap-4 mb-6;
+}
+
+.header-actions {
+  @apply flex items-center gap-2;
+}
+
+.header-badge {
+  @apply relative flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-emerald-500/10 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400 text-xs font-medium;
+}
+
+.pulse-dot {
+  @apply relative w-1.5 h-1.5 rounded-full bg-success;
+}
+
+.header-badge-text {
+  @apply relative ml-1;
+}
+
+.empty-state {
+  @apply text-center py-16 px-6 text-muted-foreground dark:text-muted-foreground-dark text-base;
+}
+
+/* Cleopatra: 0.375rem radius, no shadow, no border on solid, subtle focus ring (no bright outline) */
+/* Base – use with .btn.btn-primary; variants below also work standalone (include base + focus:outline-none) */
+.btn {
+  @apply inline-flex items-center justify-center gap-2 h-10 px-4 rounded-md font-medium text-sm font-sans cursor-pointer border-0 shadow-none transition-all duration-150 ease-out;
+  @apply focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-background-dark;
+}
+
+.btn:disabled,
+.btn-primary:disabled,
+.btn-secondary:disabled,
+.btn-danger:disabled,
+.btn-warning:disabled,
+.btn-info:disabled,
+.btn-success:disabled,
+.btn-outline:disabled,
+.btn-ghost:disabled {
+  @apply opacity-50 pointer-events-none cursor-not-allowed;
+}
+
+.btn-primary {
+  @apply inline-flex items-center justify-center gap-2 h-10 px-4 rounded-md font-medium text-sm font-sans cursor-pointer border-0 shadow-none transition-all duration-150 ease-out;
+  @apply focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-background-dark;
+  @apply bg-primary text-white hover:opacity-90;
+}
+
+.btn-secondary {
+  @apply inline-flex items-center justify-center gap-2 h-10 px-4 rounded-md font-medium text-sm font-sans cursor-pointer border-0 shadow-none transition-all duration-150 ease-out;
+  @apply focus:outline-none focus-visible:ring-2 focus-visible:ring-border focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-border-dark dark:focus-visible:ring-offset-background-dark;
+  @apply bg-muted dark:bg-muted-dark text-foreground dark:text-foreground-dark hover:opacity-80;
+}
+
+.btn-danger {
+  @apply inline-flex items-center justify-center gap-2 h-10 px-4 rounded-md font-medium text-sm font-sans cursor-pointer border-0 shadow-none transition-all duration-150 ease-out;
+  @apply focus:outline-none focus-visible:ring-2 focus-visible:ring-destructive/30 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-background-dark;
+  @apply bg-destructive text-white hover:opacity-90;
+}
+
+.btn-warning {
+  @apply inline-flex items-center justify-center gap-2 h-10 px-4 rounded-md font-medium text-sm font-sans cursor-pointer border-0 shadow-none transition-all duration-150 ease-out;
+  @apply focus:outline-none focus-visible:ring-2 focus-visible:ring-warning/30 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-background-dark;
+  @apply bg-warning text-white hover:opacity-90;
+}
+
+.btn-info {
+  @apply inline-flex items-center justify-center gap-2 h-10 px-4 rounded-md font-medium text-sm font-sans cursor-pointer border-0 shadow-none transition-all duration-150 ease-out;
+  @apply focus:outline-none focus-visible:ring-2 focus-visible:ring-info/30 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-background-dark;
+  @apply bg-info text-white hover:opacity-90;
+}
+
+.btn-success {
+  @apply inline-flex items-center justify-center gap-2 h-10 px-4 rounded-md font-medium text-sm font-sans cursor-pointer border-0 shadow-none transition-all duration-150 ease-out;
+  @apply focus:outline-none focus-visible:ring-2 focus-visible:ring-success/30 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-background-dark;
+  @apply bg-success text-white hover:opacity-90;
+}
+
+.btn-outline {
+  @apply inline-flex items-center justify-center gap-2 h-10 px-4 rounded-md font-medium text-sm font-sans cursor-pointer transition-all duration-150 ease-out shadow-none;
+  @apply focus:outline-none focus-visible:ring-2 focus-visible:ring-border focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-border-dark dark:focus-visible:ring-offset-background-dark;
+  @apply bg-transparent border border-border dark:border-border-dark text-foreground dark:text-foreground-dark hover:bg-accent dark:hover:bg-accent-dark;
+}
+
+/* Ghost: transparent, hover fill only – good for toolbar/secondary actions */
+.btn-ghost {
+  @apply inline-flex items-center justify-center gap-2 h-10 px-4 rounded-md font-medium text-sm font-sans cursor-pointer border-0 shadow-none transition-all duration-150 ease-out;
+  @apply focus:outline-none focus-visible:ring-2 focus-visible:ring-border focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-background-dark;
+  @apply bg-transparent text-foreground dark:text-foreground-dark hover:bg-accent dark:hover:bg-accent-dark;
+}
+
+.btn-link {
+  @apply inline-flex items-center gap-2 p-1 text-primary font-medium text-sm cursor-pointer border-none bg-transparent hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-2 rounded-md;
+}
+
+.btn-sm {
+  @apply h-8 px-3 text-xs rounded-md;
+}
+
+/* Chat – full viewport: fixed height, only messages area scrolls */
+.chat-page {
+  @apply flex flex-col h-full min-h-0 w-full overflow-hidden;
+}
+
+.chat-header {
+  @apply flex flex-col items-stretch gap-4 shrink-0 mb-4 pb-4 border-b border-border dark:border-border-dark bg-card dark:bg-card-dark/80 -mx-6 -mt-6 px-6 pt-6 md:-mx-8 md:-mt-8 md:px-8 md:pt-8;
+}
+
+.chat-header .page-title {
+  @apply text-2xl font-bold text-foreground dark:text-foreground-dark tracking-tight;
+}
+
+.chat-header .page-subtitle {
+  @apply text-sm text-muted-foreground dark:text-muted-foreground-dark;
+}
+
+.chat-agent-row {
+  @apply flex items-center justify-between gap-4 w-full;
+}
+
+.chat-agent-select {
+  @apply min-w-[12rem] px-3 py-2.5 rounded-cleo-lg border border-border dark:border-border-dark bg-card dark:bg-card-dark text-foreground dark:text-foreground-dark text-sm font-sans focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition duration-150;
+}
+
+.chat-gateway-error {
+  @apply px-3 py-2 rounded-cleo-lg bg-destructive/10 text-destructive text-sm mb-3;
+}
+
+.chat-messages-wrap {
+  @apply flex-1 min-h-0 overflow-y-auto mb-4 rounded-cleo-lg bg-muted/50 dark:bg-muted-dark/30 border border-border dark:border-border-dark;
+}
+
+.chat-loading {
+  @apply p-6 text-muted-foreground dark:text-muted-foreground-dark text-sm;
+}
+
+.chat-messages {
+  @apply flex flex-col gap-5 py-4;
+}
+
+.chat-empty-history {
+  @apply text-center py-12 text-muted-foreground dark:text-muted-foreground-dark;
+}
+
+.chat-empty-hint {
+  @apply text-sm mt-2 max-w-md mx-auto text-muted-foreground dark:text-muted-foreground-dark;
+}
+
+/* Message row: user right-aligned, assistant left-aligned */
+.chat-msg {
+  @apply flex items-start gap-2 w-full max-w-full;
+}
+
+.chat-msg-user {
+  @apply flex-row-reverse;
+}
+
+.chat-msg-assistant {
+  @apply flex-row;
+}
+
+.chat-msg-avatar {
+  @apply w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium shrink-0 mt-0.5;
+}
+
+.chat-msg-user .chat-msg-avatar,
+.chat-msg-avatar-user {
+  @apply bg-primary/15 text-primary dark:bg-primary/25 dark:text-indigo-300;
+}
+
+.chat-msg-assistant .chat-msg-avatar {
+  @apply bg-slate-200 dark:bg-slate-600 text-slate-600 dark:text-slate-300;
+}
+
+/* Bubble container – Cleopatra: no shadow, border only */
+.chat-msg-bubble {
+  @apply rounded-2xl px-4 py-3 max-w-[85%] min-w-0 border;
+}
+
+.chat-msg-user .chat-msg-bubble {
+  @apply bg-primary text-white border-primary/20 dark:border-primary/30;
+}
+
+.chat-msg-assistant .chat-msg-bubble {
+  @apply bg-card dark:bg-card-dark border-border dark:border-border-dark;
+}
+
+.chat-msg-meta {
+  @apply flex items-center gap-2 flex-wrap mb-1.5;
+}
+
+.chat-msg-user .chat-msg-meta {
+  @apply flex-row-reverse;
+}
+
+.chat-msg-sender {
+  @apply font-semibold text-sm;
+}
+
+.chat-msg-assistant .chat-msg-sender {
+  @apply text-foreground dark:text-foreground-dark;
+}
+
+.chat-msg-user .chat-msg-sender {
+  @apply text-white/95;
+}
+
+.chat-msg-time {
+  @apply text-xs opacity-80;
+}
+
+.chat-msg-assistant .chat-msg-time {
+  @apply text-muted-foreground dark:text-muted-foreground-dark;
+}
+
+.chat-msg-user .chat-msg-time {
+  @apply text-white/80;
+}
+
+.chat-msg-status {
+  @apply text-xs italic;
+}
+
+.chat-msg-assistant .chat-msg-status {
+  @apply text-slate-500 dark:text-slate-400;
+}
+
+.chat-msg-user .chat-msg-status {
+  @apply text-white/80;
+}
+
+.chat-msg-copy {
+  @apply ml-auto px-2 py-1 border-none bg-transparent text-xs rounded-md cursor-pointer transition-colors;
+}
+
+.chat-msg-assistant .chat-msg-copy {
+  @apply text-muted-foreground dark:text-muted-foreground-dark hover:text-foreground dark:hover:text-foreground-dark hover:bg-accent dark:hover:bg-accent-dark;
+}
+
+.chat-msg-user .chat-msg-copy {
+  @apply text-white/80 hover:text-white hover:bg-white/20;
+}
+
+.chat-msg-content {
+  @apply text-sm leading-relaxed whitespace-pre-wrap break-words;
+}
+
+.chat-msg-assistant .chat-msg-content {
+  @apply text-card-foreground dark:text-card-foreground-dark;
+}
+
+.chat-msg-user .chat-msg-content {
+  @apply text-white/95;
+}
+
+.chat-msg-content p {
+  @apply mb-2 last:mb-0;
+}
+
+/* Inline code */
+.chat-msg-content code:not(pre code) {
+  @apply px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-700 text-slate-800 dark:text-slate-200 font-mono text-[13px];
+}
+
+.chat-msg-user .chat-msg-content code:not(pre code) {
+  @apply bg-white/25 text-white;
+}
+
+/* Code blocks */
+.chat-msg-content pre {
+  @apply my-3 p-4 rounded-xl overflow-x-auto border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-900/80 text-[13px] font-mono;
+}
+
+.chat-msg-content pre code {
+  @apply p-0 bg-transparent text-slate-800 dark:text-slate-200;
+}
+
+.chat-msg-user .chat-msg-content pre {
+  @apply bg-white/15 border-white/20 text-white/95;
+}
+
+.chat-msg-user .chat-msg-content pre code {
+  @apply text-white/95;
+}
+
+.chat-msg-content ul,
+.chat-msg-content ol {
+  @apply my-2 pl-5;
+}
+
+.chat-msg-content li {
+  @apply mb-1;
+}
+
+.chat-msg-content blockquote {
+  @apply border-l-4 border-slate-300 dark:border-slate-500 pl-3 my-2 text-slate-600 dark:text-slate-400 italic;
+}
+
+.chat-typing-indicator {
+  @apply flex gap-1.5 items-center py-1;
+}
+
+.chat-typing-dot {
+  @apply w-2 h-2 rounded-full bg-slate-400 dark:bg-slate-500 animate-bounce;
+}
+
+.chat-typing-dot:nth-child(2) {
+  animation-delay: 0.1s;
+}
+
+.chat-typing-dot:nth-child(3) {
+  animation-delay: 0.2s;
+}
+
+/* Composer – Cleopatra: card bg, border, minimal */
+.chat-input-wrap {
+  @apply shrink-0 flex gap-3 items-end p-4 rounded-cleo-lg bg-card dark:bg-card-dark border border-border dark:border-border-dark;
+}
+
+.chat-input {
+  @apply flex-1 min-w-0 px-4 py-3 rounded-cleo-lg border border-border dark:border-border-dark bg-background dark:bg-background-dark text-foreground dark:text-foreground-dark text-sm font-sans resize-none min-h-12 max-h-48 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary placeholder:text-muted-foreground dark:placeholder:text-muted-foreground-dark transition duration-150;
+}
+
+.chat-send-btn {
+  @apply shrink-0 h-10 px-5 rounded-md font-medium;
+}
+
+.chat-send-btn:not(:disabled) {
+  @apply bg-primary text-white hover:opacity-90 focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2;
+}
+
+.chat-send-btn:disabled {
+  @apply bg-muted dark:bg-muted-dark text-muted-foreground dark:text-muted-foreground-dark cursor-not-allowed opacity-50;
+}
+
+/* Landing */
+.landing {
+  @apply min-h-screen flex flex-col items-center justify-center p-4 relative bg-background dark:bg-background-dark;
+}
+
+.landing-bg {
+  @apply absolute inset-0 bg-gradient-to-br from-primary-light/50 via-transparent to-primary/5 pointer-events-none;
+}
+
+.landing-content {
+  @apply relative z-10 w-full max-w-md;
+}
+
+.landing-card {
+  @apply bg-card dark:bg-card-dark rounded-cleo-lg border border-border dark:border-border-dark p-8;
+}
+
+.landing-brand {
+  @apply text-center mb-6;
+}
+
+.landing-logo {
+  @apply w-12 h-12 mx-auto mb-3 rounded-xl bg-primary-light;
+}
+
+.landing-title {
+  @apply text-2xl font-bold text-foreground dark:text-foreground-dark mb-1 tracking-tight;
+}
+
+.landing-tagline {
+  @apply text-sm text-muted-foreground dark:text-muted-foreground-dark;
+}
+
+.landing-tabs {
+  @apply flex rounded-cleo-lg bg-muted dark:bg-muted-dark p-0.5 mb-6;
+}
+
+.landing-tab {
+  @apply flex-1 py-2 px-4 rounded-md text-sm font-medium text-slate-500 transition-colors border-none bg-transparent cursor-pointer;
+}
+
+.landing-tab.active {
+  @apply bg-card dark:bg-card-dark text-foreground dark:text-foreground-dark;
+}
+
+.landing-btn {
+  @apply w-full flex items-center justify-center gap-2 h-10 px-4 rounded-md font-medium text-sm border cursor-pointer font-sans transition-all;
+}
+
+.landing-btn-primary {
+  @apply bg-primary text-white border-0 hover:opacity-90;
+}
+
+.landing-btn-google {
+  @apply bg-card dark:bg-card-dark border border-border dark:border-border-dark text-foreground dark:text-foreground-dark hover:bg-accent dark:hover:bg-accent-dark;
+}
+
+.landing-divider {
+  @apply flex items-center gap-3 my-4 text-xs text-slate-500;
+}
+
+.landing-divider::before,
+.landing-divider::after {
+  @apply flex-1 h-px bg-slate-200;
+  content: '';
+}
+
+.landing-form {
+  @apply flex flex-col gap-4;
+}
+
+.landing-error {
+  @apply text-sm text-danger mb-2;
+}
+
+.landing-label {
+  @apply flex flex-col gap-1 text-sm font-medium text-foreground dark:text-foreground-dark;
+}
+
+.landing-optional {
+  @apply font-normal text-muted-foreground dark:text-muted-foreground-dark;
+}
+
+.landing-input {
+  @apply w-full px-3 py-2 rounded-cleo-lg border border-border dark:border-border-dark bg-card dark:bg-card-dark text-foreground dark:text-foreground-dark placeholder:text-muted-foreground dark:placeholder:text-muted-foreground-dark focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition duration-150;
+}
+
+.landing-field-error {
+  @apply text-xs text-danger mt-1;
+}
+
+.landing-footer {
+  @apply text-center text-xs text-muted-foreground dark:text-muted-foreground-dark mt-6;
+}
+
+.landing-google-form {
+  @apply mb-4;
+}
+
+/* Onboarding */
+.onboarding-full {
+  @apply min-h-screen flex flex-col items-center justify-center p-4 bg-background dark:bg-background-dark;
+}
+
+.onboarding-page {
+  @apply max-w-2xl mx-auto py-8 px-4;
+}
+
+.onboarding-wizard {
+  @apply flex flex-col items-center;
+}
+
+.onboarding-progress {
+  @apply flex gap-2 mb-8;
+}
+
+.onboarding-progress-dot {
+  @apply w-2.5 h-2.5 rounded-full border-2 border-slate-300 transition-colors;
+}
+
+.onboarding-progress-dot.active {
+  @apply border-primary bg-primary-light;
+}
+
+.onboarding-progress-dot.done {
+  @apply bg-primary border-primary;
+}
+
+.onboarding-step {
+  @apply text-center w-full;
+}
+
+.onboarding-title {
+  @apply text-2xl font-bold text-foreground dark:text-foreground-dark mb-2;
+}
+
+.onboarding-desc {
+  @apply text-muted-foreground dark:text-muted-foreground-dark mb-4;
+}
+
+.onboarding-desc.onboarding-error {
+  @apply text-danger;
+}
+
+.onboarding-cta {
+  @apply btn btn-primary mt-4;
+}
+
+.onboarding-cta-secondary {
+  @apply btn-outline ml-2;
+}
+
+.onboarding-cta-secondary:hover {
+  @apply bg-slate-50;
+}
+
+.onboarding-integrations {
+  @apply flex flex-col sm:flex-row gap-4 justify-center my-6;
+}
+
+.onboarding-integration-link {
+  @apply flex items-center gap-3 p-4 rounded-cleo-lg border border-border dark:border-border-dark bg-card dark:bg-card-dark hover:bg-accent dark:hover:bg-accent-dark transition-colors no-underline text-foreground dark:text-foreground-dark;
+}
+
+.onboarding-connect-page {
+  @apply max-w-2xl mx-auto py-8 px-4;
+}
+
+.onboarding-connect-card {
+  @apply bg-card dark:bg-card-dark rounded-cleo-lg border border-border dark:border-border-dark p-6 mb-4;
+}
+
+.link {
+  @apply text-primary hover:underline;
+}
+
+/* Form */
+.form-group {
+  @apply mb-4;
+}
+
+.form-label {
+  @apply block text-sm font-medium text-foreground dark:text-foreground-dark mb-1;
+}
+
+.form-label-row {
+  @apply flex items-center justify-between gap-2 mb-1;
+}
+
+.form-input,
+.form-select {
+  @apply w-full px-3 py-2 rounded-cleo-lg border border-border dark:border-border-dark bg-card dark:bg-card-dark text-foreground dark:text-foreground-dark text-sm font-sans focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition duration-150;
+}
+
+.form-input::placeholder {
+  @apply text-muted-foreground dark:text-muted-foreground-dark;
+}
+
+.form-textarea {
+  @apply min-h-[80px] resize-y;
+}
+
+.form-hint {
+  @apply text-xs text-muted-foreground dark:text-muted-foreground-dark mt-1;
+}
+
+.form-error {
+  @apply text-sm text-destructive mt-1;
+}
+
+.form-muted {
+  @apply text-sm text-muted-foreground dark:text-muted-foreground-dark;
+}
+
+.form-group-fallbacks {
+  @apply flex flex-col gap-2;
+}
+
+/* Integrations */
+.integrations-grid {
+  @apply grid gap-4 md:grid-cols-2;
+}
+
+.integration-card {
+  @apply bg-card dark:bg-card-dark rounded-cleo-lg border border-border dark:border-border-dark overflow-hidden;
+}
+
+.integration-card-header {
+  @apply flex items-start gap-3 p-4;
+}
+
+.integration-card-icon {
+  @apply flex items-center justify-center w-10 h-10 rounded-cleo-lg bg-muted dark:bg-muted-dark text-foreground dark:text-foreground-dark shrink-0;
+}
+
+.integration-card-title-row {
+  @apply flex flex-wrap items-center gap-2 min-w-0 flex-1;
+}
+
+.integration-card-name {
+  @apply font-semibold text-foreground dark:text-foreground-dark;
+}
+
+.integration-card-meta {
+  @apply text-xs text-muted-foreground dark:text-muted-foreground-dark px-4;
+}
+
+.integration-card-badge {
+  @apply text-xs px-2 py-0.5 rounded-full font-medium;
+}
+
+.integration-card-badge.connected {
+  @apply bg-emerald-500/10 text-emerald-700;
+}
+
+.integration-card-badge.disconnected {
+  @apply bg-destructive/10 text-destructive;
+}
+
+.integration-card-desc {
+  @apply text-sm text-muted-foreground dark:text-muted-foreground-dark px-4 pb-4;
+}
+
+.integration-card-actions {
+  @apply flex flex-wrap gap-2 px-4 pb-4;
+}
+
+.integration-card-toggle-row {
+  @apply flex items-center gap-2 px-4 pb-4;
+}
+
+.integration-card-toggle-label {
+  @apply flex items-center gap-2 text-sm text-foreground dark:text-foreground-dark cursor-pointer;
+}
+
+.integration-card-hint {
+  @apply text-xs text-slate-500 mt-2;
+}
+
+.integration-setup-dialog {
+  @apply fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50;
+}
+
+.integration-setup-dialog-inner {
+  @apply bg-card dark:bg-card-dark rounded-cleo-lg border border-border dark:border-border-dark p-6 max-w-lg max-h-[90vh] overflow-y-auto;
+}
+
+.integration-setup-dialog-title {
+  @apply font-semibold text-lg mb-4;
+}
+
+.integration-setup-dialog-steps {
+  @apply list-decimal list-inside text-sm mb-4 space-y-1;
+}
+
+.integration-setup-dialog-code {
+  @apply p-3 rounded-lg bg-slate-100 text-sm overflow-x-auto my-2;
+}
+
+.integration-setup-dialog-alt {
+  @apply text-sm text-slate-500 mb-4;
+}
+
+.integration-setup-dialog-actions {
+  @apply flex gap-2;
+}
+
+/* Modal */
+.modal-backdrop,
+.modal-overlay {
+  @apply fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50;
+}
+
+.modal {
+  @apply min-w-0 max-w-full;
+}
+
+.modal-box,
+.alert-confirm-modal {
+  @apply w-full max-w-md flex flex-col gap-4 bg-card dark:bg-card-dark rounded-md border border-border dark:border-border-dark p-6 shadow-none;
+}
+
+.alert-confirm-modal .modal-title {
+  @apply mb-0 text-base font-semibold text-foreground dark:text-foreground-dark;
+}
+
+.alert-confirm-message {
+  @apply text-sm text-foreground dark:text-foreground-dark leading-relaxed;
+}
+
+.alert-confirm-modal .modal-actions {
+  @apply mt-2 pt-2 border-t border-border dark:border-border-dark;
+}
+
+.modal-title {
+  @apply text-lg font-semibold text-foreground dark:text-foreground-dark mb-2;
+}
+
+.modal-actions {
+  @apply flex gap-2 mt-4 justify-end;
+}
+
+.modal-content {
+  @apply bg-card dark:bg-card-dark rounded-cleo-lg border border-border dark:border-border-dark max-w-lg w-full max-h-[90vh] overflow-hidden flex flex-col;
+}
+
+.modal-header {
+  @apply flex items-center justify-between p-4 border-b border-border dark:border-border-dark;
+}
+
+.modal-close {
+  @apply flex items-center justify-center w-8 h-8 p-0 border-none bg-transparent rounded-cleo-lg cursor-pointer text-muted-foreground dark:text-muted-foreground-dark hover:bg-accent dark:hover:bg-accent-dark hover:text-foreground dark:hover:text-foreground-dark;
+}
+
+.modal-body {
+  @apply p-4 overflow-y-auto flex-1;
+}
+
+.modal-footer {
+  @apply flex gap-2 justify-end p-4 border-t border-border dark:border-border-dark;
+}
+
+/* Add Model modal – source tabs (Cleopatra: rounded-md, no shadow, clear active state) */
+.model-source-tabs {
+  @apply flex rounded-md bg-muted dark:bg-muted-dark p-0.5 gap-0.5 border border-border dark:border-border-dark;
+}
+
+.model-source-tab {
+  @apply flex-1 py-2.5 px-4 rounded-md text-sm font-medium text-muted-foreground dark:text-muted-foreground-dark transition-colors border-none bg-transparent cursor-pointer hover:text-foreground dark:hover:text-foreground-dark focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-2;
+}
+
+.model-source-tab.active {
+  @apply bg-card dark:bg-card-dark text-foreground dark:text-foreground-dark shadow-none;
+}
+
+/* Agents – single column (rows) */
+.agents-grid {
+  @apply flex flex-col gap-4;
+}
+
+.agent-card-sortable {
+  @apply flex flex-row items-stretch gap-3 min-w-0;
+}
+
+.agent-card-wrap {
+  @apply flex-1 min-w-0;
+}
+
+.agent-card {
+  @apply bg-card dark:bg-card-dark rounded-md border border-border dark:border-border-dark overflow-hidden min-w-0 flex flex-col shadow-none;
+}
+
+.agent-card-header {
+  @apply flex flex-row items-start gap-4 p-5 shrink-0;
+}
+
+.agent-avatar-and-actions {
+  @apply flex items-center gap-2 shrink-0;
+}
+
+.agent-avatar {
+  @apply w-12 h-12 rounded-md bg-muted dark:bg-muted-dark flex items-center justify-center text-xl shrink-0 text-muted-foreground dark:text-muted-foreground-dark;
+}
+
+.agent-emoji {
+  @apply block;
+}
+
+.agent-delete-btn {
+  @apply p-1.5 border-none bg-transparent text-muted-foreground dark:text-muted-foreground-dark cursor-pointer rounded-md shrink-0 hover:bg-accent dark:hover:bg-accent-dark hover:text-destructive transition-colors;
+}
+
+.agent-meta {
+  @apply flex-1 min-w-0 mt-0;
+}
+
+.agent-name {
+  @apply font-semibold text-foreground dark:text-foreground-dark text-lg truncate;
+}
+
+.agent-stats {
+  @apply flex flex-wrap items-center gap-1 text-sm text-muted-foreground dark:text-muted-foreground-dark mt-1 min-w-0;
+}
+
+.agent-stat {
+  @apply flex items-center gap-2 min-w-0 shrink-0;
+}
+
+.stat-dot {
+  @apply w-1.5 h-1.5 rounded-full bg-muted-foreground/60 shrink-0;
+}
+
+.stat-dot.active {
+  @apply bg-emerald-500 dark:bg-emerald-400;
+}
+
+.model-selector-group {
+  @apply flex items-center gap-2 min-w-0 flex-1;
+}
+
+.model-select {
+  @apply min-w-0 flex-1 px-3 py-2 rounded-md border border-border dark:border-border-dark bg-background dark:bg-background-dark text-foreground dark:text-foreground-dark text-sm font-sans focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition duration-150;
+}
+
+.fallbacks-section {
+  @apply mt-4 pt-4 border-t border-border dark:border-border-dark min-w-0 shrink-0 px-5 pb-5;
+}
+
+.fallbacks-header,
+.fallbacks-section-header {
+  @apply flex items-center justify-between gap-2 mb-2;
+}
+
+.fallbacks-section-title {
+  @apply text-sm font-medium text-foreground dark:text-foreground-dark;
+}
+
+.btn-add-fallback,
+.btn-save-fallbacks,
+.btn-save-model {
+  @apply btn-secondary btn-sm;
+}
+
+.btn-remove-fallback {
+  @apply p-1.5 border-none bg-transparent text-muted-foreground cursor-pointer rounded-md text-xs hover:bg-accent dark:hover:bg-accent-dark hover:text-destructive transition-colors;
+}
+
+.fallbacks-list {
+  @apply flex flex-col gap-2 min-w-0;
+}
+
+.fallback-row {
+  @apply flex items-center gap-2 min-w-0;
+}
+
+.fallback-number {
+  @apply text-muted-foreground dark:text-muted-foreground-dark w-5 shrink-0 text-sm;
+}
+
+.fallback-model-name {
+  @apply text-sm text-foreground dark:text-foreground-dark flex-1 min-w-0 truncate;
+}
+
+.fallback-empty {
+  @apply text-sm text-muted-foreground dark:text-muted-foreground-dark py-2;
+}
+
+.fallbacks-add-select {
+  @apply w-full min-w-0 px-3 py-2 rounded-md border border-border dark:border-border-dark bg-background dark:bg-background-dark text-foreground dark:text-foreground-dark text-sm font-sans focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition duration-150;
+}
+
+.fallbacks-empty-hint {
+  @apply text-xs text-muted-foreground dark:text-muted-foreground-dark mt-2;
+}
+
+.skills-section {
+  @apply mt-4 pt-4 border-t border-border dark:border-border-dark min-w-0 overflow-hidden px-5 pb-5;
+}
+
+.skills-header {
+  @apply flex items-center justify-between gap-2 mb-3;
+}
+
+.skills-title {
+  @apply text-sm font-semibold text-foreground dark:text-foreground-dark;
+}
+
+.skills-count {
+  @apply text-xs text-muted-foreground dark:text-muted-foreground-dark shrink-0;
+}
+
+.skills-list {
+  @apply flex flex-col gap-2 min-w-0;
+}
+
+.skill-item {
+  @apply p-3 rounded-md bg-muted/40 dark:bg-muted-dark/30 border border-border/50 dark:border-border-dark/50 min-w-0 transition-colors hover:bg-muted/60 dark:hover:bg-muted-dark/40 shadow-none;
+}
+
+.skill-item-top {
+  @apply flex items-center justify-between gap-2 mb-1.5 min-w-0;
+}
+
+.skill-name {
+  @apply font-medium text-foreground dark:text-foreground-dark truncate;
+}
+
+.skill-badge {
+  @apply text-xs px-2 py-0.5 rounded-md font-medium shrink-0;
+}
+
+.badge-workspace {
+  @apply bg-amber-500/10 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400;
+}
+
+.badge-bundled {
+  @apply bg-primary/10 text-primary dark:bg-primary/20 dark:text-primary-light;
+}
+
+.skill-description {
+  @apply text-xs text-muted-foreground dark:text-muted-foreground-dark line-clamp-2 break-words;
+}
+
+.agent-card-drop-target {
+  @apply ring-2 ring-primary/30 rounded-md shadow-none;
+}
+
+.agent-card-dragging {
+  @apply opacity-60;
+}
+
+.agent-card-reorder {
+  @apply flex flex-col gap-0.5 shrink-0 justify-center;
+}
+
+.agent-card-drag-handle {
+  @apply w-7 h-7 p-0 border-none bg-transparent rounded-md cursor-grab flex items-center justify-center text-muted-foreground dark:text-muted-foreground-dark hover:bg-accent dark:hover:bg-accent-dark hover:text-foreground dark:hover:text-foreground-dark transition-colors;
+}
+
+.agent-card-move-buttons {
+  @apply flex flex-col gap-0.5;
+}
+
+.agent-card-move-btn {
+  @apply w-7 h-7 p-0 border-none bg-transparent rounded-md flex items-center justify-center text-muted-foreground dark:text-muted-foreground-dark hover:bg-accent dark:hover:bg-accent-dark hover:text-foreground dark:hover:text-foreground-dark cursor-pointer transition-colors;
+}
+
+/* Tasks */
+.tasks-toolbar {
+  @apply flex flex-wrap items-center justify-between gap-6 mb-6;
+}
+
+.tasks-toolbar-actions {
+  @apply flex flex-wrap items-center gap-3;
+}
+
+.tasks-view-toggle {
+  @apply inline-flex rounded-lg overflow-hidden border border-slate-200;
+}
+
+.tasks-view-tab {
+  @apply px-3 py-2 text-sm font-medium border-none bg-transparent text-slate-500 cursor-pointer transition-colors;
+}
+
+.tasks-view-tab:hover {
+  @apply text-slate-900 bg-slate-100;
+}
+
+.tasks-view-tab.active {
+  @apply bg-card dark:bg-card-dark text-primary;
+}
+
+.tasks-select-all {
+  @apply px-2 py-1 text-xs border-none bg-transparent text-slate-500 cursor-pointer rounded hover:bg-slate-100 hover:text-slate-900;
+}
+
+.eisenhower-matrix {
+  @apply flex flex-col gap-4;
+}
+
+.eisenhower-matrix-toolbar {
+  @apply flex items-center gap-2 mb-2;
+}
+
+.eisenhower-filter-done {
+  @apply flex items-center gap-2 cursor-pointer text-sm text-slate-500;
+}
+
+.eisenhower-filter-hint {
+  @apply text-xs text-slate-500;
+}
+
+.eisenhower-axes {
+  @apply grid grid-cols-2 gap-2 text-xs font-medium text-slate-500 mb-2;
+}
+
+.eisenhower-axis-label {
+  @apply text-center;
+}
+
+.eisenhower-grid {
+  @apply grid grid-cols-2 gap-4;
+}
+
+.eisenhower-quadrant {
+  @apply p-2 rounded-lg border border-slate-200 min-h-[120px];
+}
+
+.eisenhower-quadrant-drag-over {
+  @apply ring-2 ring-primary;
+}
+
+.eisenhower-quadrant-do-first {
+  @apply bg-red-500/5 border-red-500/30;
+}
+
+.eisenhower-quadrant-schedule {
+  @apply bg-primary/5 border-primary/30;
+}
+
+.eisenhower-quadrant-delegate {
+  @apply bg-amber-500/5 border-amber-500/30;
+}
+
+.eisenhower-quadrant-eliminate {
+  @apply bg-slate-100;
+}
+
+.eisenhower-quadrant-title {
+  @apply font-semibold text-slate-900 text-sm mb-0.5;
+}
+
+.eisenhower-quadrant-hint {
+  @apply text-xs text-slate-500 mb-2;
+}
+
+.eisenhower-quadrant-cards {
+  @apply flex flex-col gap-2 min-h-[120px] p-2 rounded-lg bg-slate-100/80;
+}
+
+.recurring-view {
+  @apply mt-8;
+}
+
+.recurring-grid {
+  @apply grid gap-4;
+}
+
+.recurring-card {
+  @apply bg-card dark:bg-card-dark rounded-cleo-lg border border-border dark:border-border-dark p-4;
+}
+
+.recurring-card-header {
+  @apply flex items-start justify-between gap-2 mb-2;
+}
+
+.recurring-card-title {
+  @apply font-semibold text-slate-900;
+}
+
+.recurring-card-source {
+  @apply text-xs text-slate-500;
+}
+
+.recurring-card-meta {
+  @apply flex flex-wrap gap-2 text-xs text-slate-500 mb-2;
+}
+
+.recurring-card-synced {
+  @apply text-xs text-success mb-2;
+}
+
+.recurring-card-actions {
+  @apply flex flex-wrap gap-2;
+}
+
+/* Kanban */
+.kanban-board {
+  @apply flex gap-6 pb-4 min-w-0 flex-1 overflow-x-auto;
+}
+
+.kanban-column {
+  @apply flex flex-col flex-1 min-w-[240px] basis-0 bg-muted dark:bg-muted-dark rounded-cleo-lg p-4 border border-border dark:border-border-dark;
+}
+
+.kanban-column-drag-over {
+  @apply ring-2 ring-primary;
+}
+
+.kanban-column-header {
+  @apply flex items-center justify-between gap-2 mb-4;
+}
+
+.kanban-column-title {
+  @apply font-semibold text-foreground dark:text-foreground-dark text-sm;
+}
+
+.kanban-column-header-right {
+  @apply flex items-center gap-2;
+}
+
+.kanban-doing-hide-recurring {
+  @apply flex items-center gap-1 text-xs text-slate-500 cursor-pointer;
+}
+
+.kanban-column-count {
+  @apply text-xs text-slate-500;
+}
+
+.kanban-column-cards {
+  @apply flex flex-col gap-3 flex-1 min-h-[100px];
+}
+
+.kanban-card {
+  @apply bg-card dark:bg-card-dark rounded-cleo-lg border border-border dark:border-border-dark p-4 cursor-pointer transition-all hover:border-primary/40 dark:hover:border-primary/40;
+}
+
+.kanban-card-selected {
+  @apply border-primary ring-2 ring-primary/20;
+}
+
+.kanban-card-deleting {
+  @apply opacity-60 pointer-events-none;
+}
+
+.kanban-card-top {
+  @apply flex items-start gap-3 mb-3;
+}
+
+.kanban-card-checkbox {
+  @apply shrink-0 mt-0.5 cursor-pointer;
+}
+
+.kanban-card-head {
+  @apply flex-1 min-w-0;
+}
+
+.kanban-card-title-row {
+  @apply flex items-start justify-between gap-2;
+}
+
+.kanban-card-title {
+  @apply font-medium text-foreground dark:text-foreground-dark text-sm truncate flex-1 min-w-0;
+}
+
+.kanban-card-source-badge {
+  @apply flex items-center shrink-0 text-slate-500 text-xs;
+}
+
+.kanban-card-source-badge-icon {
+  @apply block mr-1;
+}
+
+.kanban-card-task-actions {
+  @apply flex items-center gap-1 shrink-0;
+}
+
+.kanban-card-action-btn {
+  @apply p-1 border-none bg-transparent rounded text-slate-500 cursor-pointer hover:bg-slate-100 hover:text-slate-900;
+}
+
+.kanban-card-archive-btn {
+  @apply p-1 border-none bg-transparent text-slate-500 cursor-pointer rounded text-xs hover:bg-slate-100 hover:text-slate-900;
+}
+
+.kanban-card-fields {
+  @apply flex flex-col gap-3 text-sm;
+}
+
+.kanban-card-agent-row {
+  @apply flex items-center gap-2.5;
+}
+
+.kanban-card-agent-label,
+.kanban-card-due-label {
+  @apply text-muted-foreground dark:text-muted-foreground-dark shrink-0;
+}
+
+.kanban-card-agent-select {
+  @apply flex-1 min-w-0 px-2 py-1 rounded-cleo border border-border dark:border-border-dark bg-card dark:bg-card-dark text-foreground dark:text-foreground-dark text-xs;
+}
+
+.kanban-card-due-row {
+  @apply flex items-center gap-2.5;
+}
+
+.date-picker-wrap {
+  @apply flex items-center gap-1 flex-1 min-w-0;
+}
+
+.date-picker-icon {
+  @apply shrink-0 text-slate-500;
+}
+
+.date-picker-input {
+  @apply flex-1 min-w-0 px-2 py-1.5 rounded border border-slate-300 dark:border-slate-500 bg-white dark:bg-slate-600 text-slate-900 dark:text-slate-100 text-sm font-sans;
+}
+
+.kanban-card-due-input {
+  @apply flex-1 min-w-0;
+}
+
+.date-picker-wrap-sm .date-picker-input {
+  @apply text-xs py-1;
+}
+
+.kanban-card-flags {
+  @apply flex flex-wrap gap-2 mt-1;
+}
+
+.kanban-flag {
+  @apply text-[11px] px-1.5 py-0.5 rounded-full font-medium;
+}
+
+.kanban-flag-important {
+  @apply bg-primary-light text-primary;
+}
+
+.kanban-flag-urgent {
+  @apply bg-red-500/10 text-danger;
+}
+
+/* Task detail / Create task modals */
+.task-detail-modal,
+.create-task-modal {
+  @apply max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col bg-card dark:bg-card-dark rounded-cleo-lg border border-border dark:border-border-dark;
+}
+
+.task-detail-modal-header {
+  @apply flex items-start justify-between gap-2 p-4 border-b border-border dark:border-border-dark shrink-0;
+}
+
+.task-detail-modal-header .modal-title {
+  @apply flex-1 min-w-0 truncate mb-0;
+}
+
+.task-detail-modal-actions {
+  @apply flex flex-wrap gap-2 shrink-0;
+}
+
+.task-detail-loading {
+  @apply p-8 text-slate-500 text-center;
+}
+
+.task-detail-content {
+  @apply p-4 overflow-y-auto flex-1;
+}
+
+.task-detail-editable-row {
+  @apply flex flex-col gap-3;
+}
+
+.task-detail-field {
+  @apply mb-0;
+}
+
+.task-detail-toggles {
+  @apply flex flex-wrap gap-4 mb-3;
+}
+
+.task-detail-toggle {
+  @apply flex items-center gap-2 text-sm text-foreground dark:text-foreground-dark cursor-pointer;
+}
+
+/* Cleopatra-style checkbox (for task-detail and integration toggles) */
+.task-detail-toggle input[type="checkbox"],
+.integration-card-toggle-label input[type="checkbox"] {
+  @apply h-5 w-5 shrink-0 rounded-md border-2 border-border dark:border-border-dark bg-card dark:bg-card-dark cursor-pointer transition-colors duration-150;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.task-detail-toggle input[type="checkbox"]:checked,
+.integration-card-toggle-label input[type="checkbox"]:checked {
+  @apply bg-primary border-primary dark:border-primary;
+  background-image: url("data:image/svg+xml,%3csvg viewBox='0 0 16 16' fill='white' xmlns='http://www.w3.org/2000/svg'%3e%3cpath d='M12.207 4.793a1 1 0 010 1.414l-5 5a1 1 0 01-1.414 0l-2-2a1 1 0 011.414-1.414L6.5 9.086l4.293-4.293a1 1 0 011.414 0z'/%3e%3c/svg%3e");
+}
+
+.task-detail-recurring-row {
+  @apply mb-3;
+}
+
+.task-detail-recurring-fields {
+  @apply flex flex-col gap-2 ml-6;
+}
+
+.task-detail-cron-wrap {
+  @apply flex flex-wrap items-center gap-2;
+}
+
+.task-detail-recur-label {
+  @apply text-sm text-slate-500 shrink-0;
+}
+
+.task-detail-recur-input-num {
+  @apply w-16;
+}
+
+.task-detail-recur-select {
+  @apply min-w-0;
+}
+
+.task-detail-section {
+  @apply mt-4 pt-4 border-t border-border dark:border-border-dark;
+}
+
+.task-detail-section-title {
+  @apply text-sm font-semibold text-foreground dark:text-foreground-dark mb-1;
+}
+
+.task-detail-helper {
+  @apply text-xs text-muted-foreground dark:text-muted-foreground-dark mb-2;
+}
+
+.task-detail-description-input {
+  @apply w-full min-h-[100px] px-3 py-2 rounded-lg border border-border dark:border-border-dark bg-background dark:bg-background-dark text-foreground dark:text-foreground-dark text-sm font-sans resize-y focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary;
+}
+
+.task-detail-agent-response {
+  @apply w-full min-h-[120px] px-3 py-2 rounded-md border border-border dark:border-border-dark bg-muted/50 dark:bg-muted-dark/50 text-foreground dark:text-foreground-dark text-sm font-sans resize-y cursor-default;
+}
+
+.task-detail-agent-response:focus {
+  @apply outline-none ring-2 ring-primary/20 border-primary;
+}
+
+.btn-notion-logo {
+  @apply inline-flex items-center gap-1.5 px-2 py-1 rounded border border-slate-200 bg-white text-slate-900 text-xs cursor-pointer no-underline hover:bg-slate-50;
+}
+
+.notion-logo-icon {
+  @apply block w-4 h-4;
+}
+
+.create-task-modal-header {
+  @apply flex items-center justify-between gap-2 p-4 border-b border-slate-200 flex-wrap;
+}
+
+/* Shared toggle (Cleopatra: muted track, card-colored thumb, no checkmark, primary when on). Use: .toggle-track > input.toggle-switch */
+.toggle-track {
+  @apply relative inline-flex h-6 w-11 shrink-0 rounded-full border border-border dark:border-border-dark bg-muted dark:bg-muted-dark transition-colors;
+}
+
+.toggle-track:has(input:checked) {
+  @apply border-primary/60 bg-primary/90 dark:bg-primary/80 dark:border-primary/60;
+}
+
+.create-task-save-to-notion-toggle {
+  @apply flex items-center gap-2 text-sm text-foreground dark:text-foreground-dark cursor-pointer;
+}
+
+.create-task-save-to-notion-track {
+  @apply relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border border-border dark:border-border-dark bg-muted dark:bg-muted-dark p-0.5 cursor-pointer transition-colors;
+}
+
+.create-task-save-to-notion-track:has(input:checked) {
+  @apply border-primary/60 bg-primary/90 dark:bg-primary/80 dark:border-primary/60;
+}
+
+.create-task-save-to-notion-switch {
+  @apply absolute left-0.5 top-1/2 h-5 w-5 shrink-0 rounded-full border border-border dark:border-border-dark bg-card dark:bg-card-dark shadow-none cursor-pointer transition-transform duration-200 ease-out;
+  appearance: none;
+  -webkit-appearance: none;
+  transform: translateY(-50%) translateX(0);
+}
+
+.create-task-save-to-notion-track:has(.create-task-save-to-notion-switch:checked) .create-task-save-to-notion-switch {
+  transform: translateY(-50%) translateX(1.25rem);
+  @apply border-primary/30;
+}
+
+.create-task-modal-body {
+  @apply p-4 overflow-y-auto flex-1;
+}
+
+.create-task-recurring-row {
+  @apply mb-3;
+}
+
+.create-task-modal-recurring-block {
+  @apply ml-6 flex flex-col gap-2;
+}
+
+.create-task-modal-recurring-row {
+  @apply flex flex-wrap items-center gap-2;
+}
+
+.create-task-modal-recurring-label {
+  @apply text-sm text-slate-500 shrink-0;
+}
+
+.create-task-recur-input-num {
+  @apply w-16;
+}
+
+.create-task-recur-select {
+  @apply min-w-0;
+}
+
+.create-task-recur-time {
+  @apply w-24;
+}
+
+.create-task-description-group {
+  @apply mb-3;
+}
+
+/* Models */
+.models-table-wrap {
+  @apply overflow-x-auto border border-border dark:border-border-dark rounded-cleo-lg bg-card dark:bg-card-dark;
+}
+
+.models-table {
+  @apply w-full text-sm border-collapse;
+}
+
+.models-table th,
+.models-table td {
+  @apply p-3 text-left border-b border-border dark:border-border-dark;
+}
+
+.models-table th {
+  @apply font-semibold text-foreground dark:text-foreground-dark bg-muted dark:bg-muted-dark;
+}
+
+.models-table tr:last-child td {
+  @apply border-b-0;
+}
+
+.model-name-cell {
+  @apply font-medium text-foreground dark:text-foreground-dark;
+}
+
+.model-id-cell {
+  @apply text-xs text-muted-foreground dark:text-muted-foreground-dark font-mono;
+}
+
+.provider-badge {
+  @apply inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-muted dark:bg-muted-dark text-foreground dark:text-foreground-dark;
+}
+
+.model-link-btn {
+  @apply inline-flex items-center gap-1.5 px-2 py-1.5 text-xs rounded-md border border-border dark:border-border-dark bg-card dark:bg-card-dark text-foreground dark:text-foreground-dark cursor-pointer no-underline hover:bg-accent dark:hover:bg-accent-dark transition-colors;
+}
+
+.model-link-btn svg {
+  @apply shrink-0;
+}
+
+.model-actions-cell {
+  @apply flex items-center gap-2;
+}
+
+.model-delete-btn {
+  @apply px-2 py-1 text-xs text-danger border-none bg-transparent rounded cursor-pointer hover:bg-red-50;
+}
+
+.fallback-actions {
+  @apply flex gap-1 shrink-0;
+}
+
+.fallback-move-btn,
+.fallback-remove-btn {
+  @apply p-1.5 border-none bg-transparent text-xs cursor-pointer rounded-md text-muted-foreground dark:text-muted-foreground-dark hover:bg-accent dark:hover:bg-accent-dark hover:text-foreground dark:hover:text-foreground-dark transition-colors;
+}
+
+.fallback-remove-btn {
+  @apply hover:text-destructive;
+}
