@@ -181,6 +181,17 @@ export function TasksKanban({ initialTasks, initialAgentOptions = [], notionEnab
     const [hideDoneInMatrix, setHideDoneInMatrix] = useState(true);
     const [hideRecurringInDoing, setHideRecurringInDoing] = useState(false);
     const [cronSyncLoading, setCronSyncLoading] = useState<Set<string>>(new Set());
+    const prevOpenTaskStatusRef = useRef<{ id: string | null; status: TaskStatus | null }>({ id: null, status: null });
+
+    const fetchTaskDetails = useCallback(async (taskId: string) => {
+        const res = await fetch(`/api/notion/tasks/${encodeURIComponent(taskId)}/content`);
+        const data = await res.json();
+        if (res.ok) {
+            setTaskDetailsCache((c) => ({ ...c, [taskId]: data }));
+            return data as TaskDetails;
+        }
+        return null;
+    }, []);
 
     const refreshTasks = useCallback(async () => {
         setRefreshLoading(true);
@@ -244,12 +255,50 @@ export function TasksKanban({ initialTasks, initialAgentOptions = [], notionEnab
                             }
                             return next;
                         });
+
+                        const openTask = taskModalTask;
+                        if (openTask?.source !== 'local') {
+                            const updatedOpenTask = data.tasks.find((t: Task) => t.id === openTask.id);
+                            // Refresh while running, and once more on the Doing -> Done transition
+                            // so the final agent writeback appears in the modal.
+                            if (updatedOpenTask && (updatedOpenTask.status === 'Doing' || openTask.status === 'Doing')) {
+                                fetchTaskDetails(openTask.id).catch(() => {});
+                            }
+                        }
                     }
                 })
                 .catch(() => {});
         }, 15000);
         return () => clearInterval(interval);
-    }, [hasDoingTasks]);
+    }, [fetchTaskDetails, hasDoingTasks, taskModalTask]);
+
+    useEffect(() => {
+        const prev = prevOpenTaskStatusRef.current;
+        const currentId = taskModalTask?.id ?? null;
+        const currentStatus = taskModalTask?.status ?? null;
+        const currentSource = taskModalTask?.source;
+
+        const transitionedOutOfDoing =
+            !!taskModalTask &&
+            currentSource !== 'local' &&
+            prev.id === currentId &&
+            prev.status === 'Doing' &&
+            currentStatus !== 'Doing';
+
+        prevOpenTaskStatusRef.current = { id: currentId, status: currentStatus };
+
+        if (!transitionedOutOfDoing || !taskModalTask) return;
+
+        // Final agent writeback can land right around status completion; retry a couple times
+        // so the modal's Agent response reflects the Notion page body.
+        fetchTaskDetails(taskModalTask.id).catch(() => {});
+        const t1 = window.setTimeout(() => { fetchTaskDetails(taskModalTask.id).catch(() => {}); }, 1000);
+        const t2 = window.setTimeout(() => { fetchTaskDetails(taskModalTask.id).catch(() => {}); }, 3000);
+        return () => {
+            window.clearTimeout(t1);
+            window.clearTimeout(t2);
+        };
+    }, [fetchTaskDetails, taskModalTask]);
 
     const showTaskActionError = (res: Response, data: { error?: string }) => {
         if (res.status === 501) {
@@ -309,9 +358,7 @@ export function TasksKanban({ initialTasks, initialAgentOptions = [], notionEnab
         if (taskDetailsCache[task.id]) return;
         setLoadingDetailsId(task.id);
         try {
-            const res = await fetch(`/api/notion/tasks/${encodeURIComponent(task.id)}/content`);
-            const data = await res.json();
-            if (res.ok) setTaskDetailsCache((c) => ({ ...c, [task.id]: data }));
+            await fetchTaskDetails(task.id);
         } finally {
             setLoadingDetailsId(null);
         }
@@ -874,7 +921,7 @@ const openCreateModal = async () => {
             if (prevTask) setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...prevTask } : t)));
             showAlert(e instanceof Error ? e.message : 'Update failed');
         }
-    }, [tasks, taskDetailsCache, showAlert]);
+    }, [tasks, taskDetailsCache, showAlert, taskModalTask?.id]);
 
     const createTask = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -1380,13 +1427,14 @@ const openCreateModal = async () => {
                             onUpdateTask={async (payload) => updateTaskFromCard(taskModalTask.id, payload)}
                             agentOptions={agentOptions}
                             isAgentEditable={taskModalTask.status !== 'Done' && (taskModalTask.status !== 'Doing' || pausedTaskIds.has(taskModalTask.id))}
+                            isPaused={pausedTaskIds.has(taskModalTask.id)}
                         />
                     </div>
                 </div>
             )}
 
             {createOpen && (
-                <div className="modal-backdrop" onClick={() => { setCreateOpen(false); setCreateStep('task'); setNewAgentView('create'); setNewAgentForm({ name: '', model: '', fallbacks: [] }); setCreateForm((f) => ({ ...f, recurring: false, recurUnit: 'Day', recurInterval: 1, recurTime: '09:00', recurEnd: 'Never', important: false, urgent: false })); }}>
+                <div className="modal-backdrop" onClick={() => { setCreateOpen(false); setCreateStep('task'); setNewAgentView('create'); setNewAgentForm({ name: '', model: '', fallbacks: [] }); setCreateForm((f) => ({ ...f, dueDate: todayIso(), recurring: false, recurUnit: 'Day', recurInterval: 1, recurTime: '09:00', recurEnd: 'Never', important: false, urgent: false })); }}>
                     <div className="modal create-task-modal" onClick={(e) => e.stopPropagation()}>
                         <div className="create-task-modal-header">
                             <h2 className="modal-title">
@@ -1603,7 +1651,7 @@ const openCreateModal = async () => {
                                     </div>
                                 </div>
                                 <div className="modal-actions" style={{ flexShrink: 0 }}>
-                                    <button type="button" className="btn-secondary" onClick={() => { setCreateOpen(false); setCreateStep('task'); setCreateForm((f) => ({ ...f, recurring: false, recurUnit: 'Day', recurInterval: 1, recurTime: '09:00', recurEnd: 'Never', important: false, urgent: false })); }}>
+                                    <button type="button" className="btn-secondary" onClick={() => { setCreateOpen(false); setCreateStep('task'); setCreateForm((f) => ({ ...f, dueDate: todayIso(), recurring: false, recurUnit: 'Day', recurInterval: 1, recurTime: '09:00', recurEnd: 'Never', important: false, urgent: false })); }}>
                                         Cancel
                                     </button>
                                     <button type="submit" className="btn-primary" disabled={createLoading || !createForm.description.trim()}>
@@ -1775,6 +1823,7 @@ const KanbanCard = memo(function KanbanCard({
 }) {
     const dueDateValue = task.dueDate ? task.dueDate.slice(0, 10) : '';
     const hasAgent = !!(task.agent && task.agent.trim());
+    const isPaused = pausedTaskIds?.has(task.id) ?? false;
     const isAgentEditable = task.status !== 'Done' && (task.status !== 'Doing' || (pausedTaskIds?.has(task.id) ?? false));
     const handleAgentChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
         const newAgent = e.target.value;
@@ -1814,12 +1863,12 @@ const KanbanCard = memo(function KanbanCard({
                                     <button
                                         type="button"
                                         className="kanban-card-action-btn"
-                                        onClick={onStop}
+                                        onClick={isPaused ? onStart : onStop}
                                         disabled={isStartLoading || isStopLoading}
-                                        title="Pause agent"
-                                        aria-label="Pause agent"
+                                        title={isPaused ? 'Resume agent' : 'Pause agent'}
+                                        aria-label={isPaused ? 'Resume agent' : 'Pause agent'}
                                     >
-                                        {isStopLoading ? 'Pausing…' : 'Pause'}
+                                        {isPaused ? (isStartLoading ? 'Resuming…' : 'Resume') : (isStopLoading ? 'Pausing…' : 'Pause')}
                                     </button>
                                 )}
                                 {task.status === 'To Do' && (
@@ -1920,6 +1969,7 @@ function TaskDetailModal({
     isStartLoading,
     isStopLoading,
     isAgentEditable,
+    isPaused,
 }: {
     task: Task;
     details?: TaskDetails | null;
@@ -1933,6 +1983,7 @@ function TaskDetailModal({
     isStartLoading?: boolean;
     isStopLoading?: boolean;
     isAgentEditable?: boolean;
+    isPaused?: boolean;
 }) {
     const contentRef = useRef<HTMLDivElement>(null);
     const [descriptionDraft, setDescriptionDraft] = useState(details?.description ?? '');
@@ -1983,12 +2034,12 @@ function TaskDetailModal({
                                 <button
                                     type="button"
                                     className="btn-secondary btn-sm"
-                                    onClick={onStop}
+                                    onClick={isPaused ? onStart : onStop}
                                     disabled={isStartLoading || isStopLoading}
-                                    title="Pause agent"
-                                    aria-label="Pause agent"
+                                    title={isPaused ? 'Resume agent' : 'Pause agent'}
+                                    aria-label={isPaused ? 'Resume agent' : 'Pause agent'}
                                 >
-                                    {isStopLoading ? 'Pausing…' : 'Pause'}
+                                    {isPaused ? (isStartLoading ? 'Resuming…' : 'Resume') : (isStopLoading ? 'Pausing…' : 'Pause')}
                                 </button>
                             )}
                             {task.status === 'To Do' && (
@@ -2035,7 +2086,7 @@ function TaskDetailModal({
                             />
                         </a>
                     )}
-                    <button type="button" className="btn-secondary" onClick={onClose}>
+                    <button type="button" className="btn-secondary btn-sm" onClick={onClose}>
                         Close
                     </button>
                 </div>
@@ -2046,8 +2097,9 @@ function TaskDetailModal({
                 <div ref={contentRef} className="task-detail-content">
                     <div className="task-detail-editable-row">
                         <div className="form-group task-detail-field">
-                            <label>Status</label>
+                            <label className="form-label">Status</label>
                             <select
+                                className="form-select"
                                 value={task.status}
                                 onChange={(e) => onUpdateTask({ status: e.target.value as TaskStatus })}
                             >
@@ -2058,8 +2110,9 @@ function TaskDetailModal({
                         </div>
                         {agentOptions.length > 0 && (
                             <div className="form-group task-detail-field">
-                                <label>Agent</label>
+                                <label className="form-label">Agent</label>
                                 <select
+                                    className="form-select"
                                     value={details.agent ?? ''}
                                     onChange={async (e) => {
                                         const newAgent = e.target.value;
@@ -2077,7 +2130,7 @@ function TaskDetailModal({
                             </div>
                         )}
                         <div className="form-group task-detail-field task-detail-field-due">
-                            <label>Due date</label>
+                            <label className="form-label">Due date</label>
                             <div className="date-picker-wrap">
                                 <svg className="date-picker-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                                     <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />

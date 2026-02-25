@@ -3,6 +3,13 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import { removeAgentSelectOption } from '@/lib/notion';
+import { withGatewayWs } from '@/lib/gateway-client';
+import {
+    getDefaultSessionKey,
+    getGatewayAuth,
+    getGatewayControlUiOrigin,
+    getGatewayUrl,
+} from '@/lib/openclaw';
 
 const MAIN_AGENT_ID = 'main';
 
@@ -20,6 +27,47 @@ function deleteAgentWorkspaceIfExists(openclawDir: string, agentId: string): voi
     if (fs.statSync(workspaceDir).isDirectory()) {
         fs.rmSync(workspaceDir, { recursive: true });
     }
+}
+
+function getAgentSessionKeys(agentDir: string, agentId: string): string[] {
+    const keys = new Set<string>();
+    keys.add(getDefaultSessionKey(agentId));
+    const sessionsPath = path.join(agentDir, 'sessions', 'sessions.json');
+    if (!fs.existsSync(sessionsPath)) return [...keys];
+    try {
+        const raw = fs.readFileSync(sessionsPath, 'utf-8');
+        const parsed = JSON.parse(raw) as Record<string, unknown>;
+        for (const k of Object.keys(parsed ?? {})) {
+            if (typeof k === 'string' && k.startsWith(`agent:${agentId}:`)) {
+                keys.add(k);
+            }
+        }
+    } catch {
+        // Ignore malformed session metadata; local dir deletion is still authoritative.
+    }
+    return [...keys];
+}
+
+async function deleteGatewaySessionsForAgent(agentDir: string, agentId: string): Promise<void> {
+    const gatewayUrl = getGatewayUrl();
+    if (!gatewayUrl) return;
+    const sessionKeys = getAgentSessionKeys(agentDir, agentId);
+    if (sessionKeys.length === 0) return;
+
+    const auth = getGatewayAuth();
+    const origin = getGatewayControlUiOrigin();
+    await withGatewayWs(gatewayUrl, { auth, origin }, async (_ws, sendReq) => {
+        for (const key of sessionKeys) {
+            try {
+                await sendReq('sessions.delete', { key, deleteTranscript: true });
+            } catch (err) {
+                const msg = err instanceof Error ? err.message : String(err);
+                if (!/not found|session not found|404/i.test(msg)) {
+                    throw err instanceof Error ? err : new Error(msg);
+                }
+            }
+        }
+    });
 }
 
 export async function DELETE(
@@ -66,6 +114,12 @@ export async function DELETE(
         config.agents.list.splice(index, 1);
         fs.writeFileSync(configPath, JSON.stringify(config, null, 2) + '\n', 'utf-8');
 
+        try {
+            await deleteGatewaySessionsForAgent(agentDir, agentId);
+        } catch (e) {
+            console.warn('Could not delete gateway sessions for agent:', (e as Error).message);
+        }
+
         if (fs.existsSync(agentDir)) {
             fs.rmSync(agentDir, { recursive: true });
         }
@@ -76,6 +130,13 @@ export async function DELETE(
             await removeAgentSelectOption(agentName);
         } catch (e) {
             console.warn('Could not remove agent from Notion Agent select:', (e as Error).message);
+        }
+        if (agentName !== agentId) {
+            try {
+                await removeAgentSelectOption(agentId);
+            } catch (e) {
+                console.warn('Could not remove agent ID from Notion Agent select:', (e as Error).message);
+            }
         }
 
         return NextResponse.json({ success: true, id: agentId });
