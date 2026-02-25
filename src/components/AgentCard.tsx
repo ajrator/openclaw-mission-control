@@ -258,11 +258,14 @@ export function AgentCard({ agent }: AgentCardProps) {
                 </div>
             )}
 
-            <div className="skills-section">
-                <div className="skills-header">
+            <details className="skills-section">
+                <summary className="skills-header skills-summary">
                     <span className="skills-title">Installed Skills</span>
-                    <span className="skills-count">{skills.length}</span>
-                </div>
+                    <span className="skills-summary-right">
+                        <span className="skills-count">{skills.length}</span>
+                        <span className="details-chevron" aria-hidden>▾</span>
+                    </span>
+                </summary>
                 <div className="skills-list">
                     {skills.map((skill) => (
                         <div key={skill.name} className="skill-item">
@@ -276,7 +279,7 @@ export function AgentCard({ agent }: AgentCardProps) {
                         </div>
                     ))}
                 </div>
-            </div>
+            </details>
         </div>
     );
 }

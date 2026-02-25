@@ -6,7 +6,7 @@
 
 import { getAllLocalTasks } from '@/lib/local-tasks';
 import { isNotionTasksEnabled } from '@/lib/mission-control-prefs';
-import { queryTasksFromNotion, getDatabaseSchema, isNotionConfigured, ensureRecurringProperties } from '@/lib/notion';
+import { queryTasksFromNotion, getDatabaseSchema, isNotionConfigured } from '@/lib/notion';
 import { getOpenClawData } from '@/lib/openclaw';
 import { localToTask, notionToTask, sortTasks, type Task } from '@/lib/tasks';
 
@@ -20,9 +20,6 @@ export interface UnifiedTasksResult {
 export async function getUnifiedTasks(forceRefresh?: boolean, recurringOnly?: boolean): Promise<UnifiedTasksResult> {
     const notionEnabled = isNotionTasksEnabled();
     const notionConfigured = isNotionConfigured();
-    if (notionEnabled && notionConfigured) {
-        await ensureRecurringProperties();
-    }
     const localTasks = getAllLocalTasks();
     const tasksLocal = localTasks.map(localToTask);
     let tasksNotion: Task[] = [];

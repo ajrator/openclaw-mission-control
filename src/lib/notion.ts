@@ -98,7 +98,9 @@ export interface BooleanPropertySchema {
 
 export interface NotionDatabaseSchema {
     titleKey: string;
+    statusKey: string;
     statusType: 'select' | 'status';
+    agentKey?: string;
     agentOptions: string[];
     descriptionKey?: string;
     dueDateKey?: string;
@@ -110,6 +112,7 @@ export interface NotionDatabaseSchema {
     cronJobIdKey?: string;
     /** Structured recurring (recur unit, interval, time, end) */
     recurUnitKey?: string;
+    recurUnitType?: 'rich_text' | 'select';
     recurIntervalKey?: string;
     recurTimeKey?: string;
     recurEndKey?: string;
@@ -131,6 +134,22 @@ export interface TaskDetails extends NotionPageContent {
     dueDate?: string;
     createdAt?: string;
     lastEditedAt?: string;
+}
+
+export type NotionTaskSchemaFieldHealth = {
+    key: string;
+    required: boolean;
+    status: 'present' | 'missing' | 'incompatible';
+    foundKey?: string;
+    foundType?: string;
+    expected: string[];
+    note?: string;
+};
+
+export interface NotionTaskSchemaHealth {
+    ok: boolean;
+    summary: { present: number; missing: number; incompatible: number };
+    fields: NotionTaskSchemaFieldHealth[];
 }
 
 export interface TaskUpdatePayload {
@@ -155,12 +174,18 @@ const NOTION_API = 'https://api.notion.com/v1';
 const NOTION_VERSION = '2022-06-28';
 const SCHEMA_CACHE_TTL_MS = 5 * 60 * 1000; // 5 min
 const TASKS_CACHE_TTL_MS = 60 * 1000; // 1 min
+const TASK_SCHEMA_ENSURE_TTL_MS = 5 * 60 * 1000; // 5 min
 let schemaCache: { data: NotionDatabaseSchema; at: number } | null = null;
 let tasksCache: { data: NotionTask[]; at: number } | null = null;
+let schemaCachePromise: Promise<NotionDatabaseSchema> | null = null;
+let ensureTaskPropsAt = 0;
+let ensureTaskPropsPromise: Promise<void> | null = null;
 
 /** Call after any change that affects the Notion Tasks database schema (e.g. adding an Agent select option). */
 export function invalidateSchemaCache(): void {
     schemaCache = null;
+    schemaCachePromise = null;
+    ensureTaskPropsAt = 0;
 }
 
 /** Canonical recurring property names (create if missing). Also match common variants when reading. */
@@ -170,6 +195,64 @@ const RECUR_TIME_NAMES = ['Recur Time', 'Recur time', 'recur time'];
 const RECUR_END_NAMES = ['Recur End', 'Recur end', 'recur end'];
 const RECUR_END_COUNT_NAMES = ['Recur End Count', 'Recur end count', 'recur end count'];
 const RECUR_END_DATE_NAMES = ['Recur End Date', 'Recur end date', 'recur end date'];
+
+function normalizeRecurUnitValue(value: string | undefined | null): string | undefined {
+    const raw = (value ?? '').trim();
+    if (!raw) return undefined;
+    const compact = raw.replace(/\s+/g, '').toLowerCase();
+
+    const aliases: Record<string, string> = {
+        day: 'Day',
+        daily: 'Day',
+        everyday: 'Day',
+
+        week: 'Week',
+        weekly: 'Week',
+        everyweek: 'Week',
+
+        month: 'Month',
+        monthly: 'Month',
+        everymonth: 'Month',
+
+        monthfirstweekday: 'MonthFirstWeekday',
+        monthsonthefirstweekday: 'MonthFirstWeekday',
+        monthsonfirstweekday: 'MonthFirstWeekday',
+        firstweekday: 'MonthFirstWeekday',
+
+        monthlastweekday: 'MonthLastWeekday',
+        monthsonthelastweekday: 'MonthLastWeekday',
+        monthsonlastweekday: 'MonthLastWeekday',
+        lastweekday: 'MonthLastWeekday',
+
+        monthlastday: 'MonthLastDay',
+        monthsonthelastday: 'MonthLastDay',
+        monthsonlastday: 'MonthLastDay',
+        lastday: 'MonthLastDay',
+
+        year: 'Year',
+        yearly: 'Year',
+        annual: 'Year',
+        annually: 'Year',
+        everyyear: 'Year',
+    };
+
+    return aliases[compact] ?? raw;
+}
+
+function toNotionRecurUnitValue(value: string | undefined | null): string | undefined {
+    const normalized = normalizeRecurUnitValue(value);
+    if (!normalized) return undefined;
+    const out: Record<string, string> = {
+        Day: 'Day',
+        Week: 'Week',
+        Month: 'Month',
+        MonthFirstWeekday: 'Month(s) on the First Weekday',
+        MonthLastWeekday: 'Month(s) on the Last Weekday',
+        MonthLastDay: 'Month(s) on the Last Day',
+        Year: 'Year',
+    };
+    return out[normalized] ?? normalized;
+}
 
 function findPropKey(props: Record<string, { type?: string }>, names: string[]): string | undefined {
     for (const name of names) {
@@ -209,6 +292,250 @@ export async function ensureRecurringProperties(): Promise<void> {
     } catch {
         // Notion not configured or permission error; log and continue
     }
+}
+
+/** Ensure core task properties exist (Agent/Status/Description/Due/Important/Urgent) plus recurring properties. */
+export async function ensureTaskDatabaseProperties(): Promise<void> {
+    if (Date.now() - ensureTaskPropsAt < TASK_SCHEMA_ENSURE_TTL_MS) return;
+    if (ensureTaskPropsPromise) return ensureTaskPropsPromise;
+
+    ensureTaskPropsPromise = (async () => {
+        try {
+            const { apiKey, databaseId } = getConfig();
+            const res = await fetch(`${NOTION_API}/databases/${databaseId}`, {
+                headers: notionHeaders(apiKey),
+            });
+            if (!res.ok) return;
+            const db = (await res.json()) as { properties?: Record<string, { type?: string; select?: { options?: Array<{ name?: string }> } }> };
+            const props = db.properties ?? {};
+            const patch: Record<string, unknown> = {};
+
+            const hasStatus = Object.entries(props).some(([key, def]) =>
+                (key === 'Status' || key === 'status') && (def?.type === 'status' || def?.type === 'select')
+            );
+            const hasAgentSelect = Object.entries(props).some(([key, def]) =>
+                key.trim().toLowerCase() === 'agent' && def?.type === 'select'
+            );
+            const hasDescription = Object.entries(props).some(([key, def]) =>
+                key.trim().toLowerCase() === 'description' && def?.type === 'rich_text'
+            );
+            const hasDueDate = Object.entries(props).some(([key, def]) => {
+                const norm = key.replace(/\s*\?*\s*$/, '').toLowerCase();
+                return (norm === 'due' || norm === 'due date') && def?.type === 'date';
+            });
+            const hasImportant = Object.entries(props).some(([key, def]) =>
+                key.replace(/\s*\?*\s*$/, '').toLowerCase() === 'important' &&
+                (def?.type === 'checkbox' || def?.type === 'select')
+            );
+            const hasUrgent = Object.entries(props).some(([key, def]) =>
+                key.replace(/\s*\?*\s*$/, '').toLowerCase() === 'urgent' &&
+                (def?.type === 'checkbox' || def?.type === 'select')
+            );
+
+            if (!hasStatus) {
+                patch['Status'] = {
+                    select: {
+                        options: [{ name: 'To Do' }, { name: 'Doing' }, { name: 'Done' }],
+                    },
+                };
+            }
+            if (!hasAgentSelect) {
+                const openclawAgents = getOpenClawData().agents
+                    .map((a) => (a.name || a.id || '').trim())
+                    .filter(Boolean);
+                const uniqueAgents = [...new Set(openclawAgents)];
+                patch['Agent'] = {
+                    select: {
+                        options: uniqueAgents.map((name) => ({ name })),
+                    },
+                };
+            }
+            if (!hasDescription) patch['Description'] = { type: 'rich_text' };
+            if (!hasDueDate) patch['Due date'] = { type: 'date' };
+            if (!hasImportant) patch['Important'] = { type: 'checkbox' };
+            if (!hasUrgent) patch['Urgent'] = { type: 'checkbox' };
+            if (!props['Recurring']) patch['Recurring'] = { type: 'checkbox' };
+            if (!props['Cron']) patch['Cron'] = { type: 'rich_text' };
+            if (!props['Cron Job ID']) patch['Cron Job ID'] = { type: 'rich_text' };
+            if (!findPropKey(props, RECUR_UNIT_NAMES)) patch['Recur Unit'] = { type: 'rich_text' };
+            if (!findPropKey(props, RECUR_INTERVAL_NAMES)) patch['Recur Interval'] = { type: 'number' };
+            if (!findPropKey(props, RECUR_TIME_NAMES)) patch['Recur Time'] = { type: 'rich_text' };
+            if (!findPropKey(props, RECUR_END_NAMES)) patch['Recur End'] = { type: 'rich_text' };
+            if (!findPropKey(props, RECUR_END_COUNT_NAMES)) patch['Recur End Count'] = { type: 'number' };
+            if (!findPropKey(props, RECUR_END_DATE_NAMES)) patch['Recur End Date'] = { type: 'date' };
+
+            if (Object.keys(patch).length === 0) return;
+            const patchRes = await fetch(`${NOTION_API}/databases/${databaseId}`, {
+                method: 'PATCH',
+                headers: notionHeaders(apiKey),
+                body: JSON.stringify({ properties: patch }),
+            });
+            if (!patchRes.ok) return;
+            invalidateSchemaCache();
+        } catch {
+            // Notion not configured or permission error; continue in local-only mode.
+        } finally {
+            ensureTaskPropsAt = Date.now();
+            ensureTaskPropsPromise = null;
+        }
+    })();
+
+    return ensureTaskPropsPromise;
+}
+
+export async function getTaskDatabaseSchemaHealth(): Promise<NotionTaskSchemaHealth> {
+    const { apiKey, databaseId } = getConfig();
+    const res = await fetch(`${NOTION_API}/databases/${databaseId}`, {
+        headers: notionHeaders(apiKey),
+    });
+    if (!res.ok) {
+        const err = await res.text();
+        throw new Error(`Notion API error ${res.status}: ${err}`);
+    }
+    const db = (await res.json()) as {
+        properties?: Record<string, { type?: string }>;
+    };
+    const props = db.properties ?? {};
+    const entries = Object.entries(props);
+
+    const findByName = (names: string[]) =>
+        entries.find(([k]) => names.some((n) => k.trim().toLowerCase() === n.trim().toLowerCase()));
+    const findByPredicate = (fn: (key: string, type?: string) => boolean) =>
+        entries.find(([k, def]) => fn(k, def?.type));
+
+    const checks: Array<{ key: string; required: boolean; expected: string[]; finder: () => [string, { type?: string }] | undefined; note?: string }> = [
+        {
+            key: 'Title',
+            required: true,
+            expected: ['title'],
+            finder: () => findByPredicate((_k, type) => type === 'title'),
+            note: 'Database must have a title property (any name).',
+        },
+        {
+            key: 'Status',
+            required: true,
+            expected: ['status', 'select'],
+            finder: () => findByName(['Status', 'status']),
+        },
+        {
+            key: 'Agent',
+            required: true,
+            expected: ['select'],
+            finder: () => findByName(['Agent']),
+        },
+        {
+            key: 'Description',
+            required: true,
+            expected: ['rich_text'],
+            finder: () => findByName(['Description', 'description']),
+        },
+        {
+            key: 'Due date',
+            required: true,
+            expected: ['date'],
+            finder: () => findByPredicate((key) => {
+                const norm = key.replace(/\s*\?*\s*$/, '').toLowerCase();
+                return norm === 'due' || norm === 'due date';
+            }),
+        },
+        {
+            key: 'Important',
+            required: false,
+            expected: ['checkbox', 'select'],
+            finder: () => findByPredicate((key) => key.replace(/\s*\?*\s*$/, '').toLowerCase() === 'important'),
+        },
+        {
+            key: 'Urgent',
+            required: false,
+            expected: ['checkbox', 'select'],
+            finder: () => findByPredicate((key) => key.replace(/\s*\?*\s*$/, '').toLowerCase() === 'urgent'),
+        },
+        {
+            key: 'Recurring',
+            required: false,
+            expected: ['checkbox'],
+            finder: () => findByName(['Recurring']),
+        },
+        {
+            key: 'Cron',
+            required: false,
+            expected: ['rich_text'],
+            finder: () => findByName(['Cron']),
+        },
+        {
+            key: 'Cron Job ID',
+            required: false,
+            expected: ['rich_text'],
+            finder: () => findByName(['Cron Job ID', 'CronJobId']),
+        },
+        {
+            key: 'Recur Unit',
+            required: false,
+            expected: ['rich_text', 'select'],
+            finder: () => findByName(RECUR_UNIT_NAMES),
+        },
+        {
+            key: 'Recur Interval',
+            required: false,
+            expected: ['number'],
+            finder: () => findByName(RECUR_INTERVAL_NAMES),
+        },
+        {
+            key: 'Recur Time',
+            required: false,
+            expected: ['rich_text'],
+            finder: () => findByName(RECUR_TIME_NAMES),
+        },
+        {
+            key: 'Recur End',
+            required: false,
+            expected: ['rich_text'],
+            finder: () => findByName(RECUR_END_NAMES),
+        },
+        {
+            key: 'Recur End Count',
+            required: false,
+            expected: ['number'],
+            finder: () => findByName(RECUR_END_COUNT_NAMES),
+        },
+        {
+            key: 'Recur End Date',
+            required: false,
+            expected: ['date'],
+            finder: () => findByName(RECUR_END_DATE_NAMES),
+        },
+    ];
+
+    const fields: NotionTaskSchemaFieldHealth[] = checks.map((c) => {
+        const found = c.finder();
+        if (!found) {
+            return { key: c.key, required: c.required, status: 'missing', expected: c.expected, note: c.note };
+        }
+        const [foundKey, def] = found;
+        const foundType = def?.type ?? 'unknown';
+        const ok = c.expected.includes(foundType);
+        return {
+            key: c.key,
+            required: c.required,
+            status: ok ? 'present' : 'incompatible',
+            foundKey,
+            foundType,
+            expected: c.expected,
+            note: c.note,
+        };
+    });
+
+    const summary = {
+        present: fields.filter((f) => f.status === 'present').length,
+        missing: fields.filter((f) => f.status === 'missing').length,
+        incompatible: fields.filter((f) => f.status === 'incompatible').length,
+    };
+
+    return {
+        ok: fields.every((f) => !f.required || f.status === 'present'),
+        summary,
+        fields,
+    };
 }
 
 /** Call after any change that affects the task list (status update, create, archive). */
@@ -267,9 +594,9 @@ function notionHeaders(apiKey: string): Record<string, string> {
  * Filter: tasks where Agent property is not empty.
  * Your Notion database uses Agent as a "select" property.
  */
-function agentNotEmptyFilter() {
+function agentNotEmptyFilter(agentProperty = 'Agent') {
     return {
-        property: 'Agent',
+        property: agentProperty,
         select: { is_not_empty: true },
     };
 }
@@ -325,6 +652,15 @@ function extractRichTextByKey(properties: Record<string, unknown>, key: string):
     return text || undefined;
 }
 
+function extractTextOrSelectByKey(properties: Record<string, unknown>, key: string): string | undefined {
+    const prop = properties?.[key];
+    if (!prop || typeof prop !== 'object') return undefined;
+    const p = prop as { rich_text?: Array<{ plain_text?: string }>; select?: { name?: string } };
+    if (p.select?.name && p.select.name.trim()) return p.select.name.trim();
+    const text = p.rich_text?.map((t) => t.plain_text ?? '').join('').trim();
+    return text || undefined;
+}
+
 function extractNumberByKey(properties: Record<string, unknown>, key: string): number | undefined {
     const prop = properties?.[key];
     if (!prop || typeof prop !== 'object') return undefined;
@@ -364,6 +700,7 @@ export async function queryTasksFromNotion(options?: { forceRefresh?: boolean })
         return tasksCache!.data;
     }
 
+    await ensureTaskDatabaseProperties();
     const { apiKey, databaseId } = getConfig();
     const schema = await getDatabaseSchema(options);
 
@@ -372,7 +709,7 @@ export async function queryTasksFromNotion(options?: { forceRefresh?: boolean })
 
     do {
         const body: Record<string, unknown> = {
-            filter: agentNotEmptyFilter(),
+            ...(schema.agentKey ? { filter: agentNotEmptyFilter(schema.agentKey) } : {}),
             page_size: 100,
         };
         if (cursor) body.start_cursor = cursor;
@@ -413,7 +750,7 @@ export async function queryTasksFromNotion(options?: { forceRefresh?: boolean })
             if (schema.recurringKey) task.recurring = extractCheckboxByKey(props, schema.recurringKey);
             if (schema.cronKey) task.cron = extractRichTextByKey(props, schema.cronKey);
             if (schema.cronJobIdKey) task.cronJobId = extractRichTextByKey(props, schema.cronJobIdKey);
-            if (schema.recurUnitKey) task.recurUnit = extractRichTextByKey(props, schema.recurUnitKey) ?? undefined;
+            if (schema.recurUnitKey) task.recurUnit = normalizeRecurUnitValue(extractTextOrSelectByKey(props, schema.recurUnitKey));
             if (schema.recurIntervalKey) task.recurInterval = extractNumberByKey(props, schema.recurIntervalKey);
             if (schema.recurTimeKey) task.recurTime = extractRichTextByKey(props, schema.recurTimeKey) ?? undefined;
             if (schema.recurEndKey) task.recurEnd = extractRichTextByKey(props, schema.recurEndKey) ?? undefined;
@@ -441,6 +778,10 @@ export async function getDatabaseSchema(options?: { forceRefresh?: boolean }): P
     if (useCache) {
         return schemaCache!.data;
     }
+    if (!options?.forceRefresh && schemaCachePromise) {
+        return schemaCachePromise;
+    }
+    schemaCachePromise = (async () => {
     const { apiKey, databaseId } = getConfig();
     const res = await fetch(`${NOTION_API}/databases/${databaseId}`, {
         headers: notionHeaders(apiKey),
@@ -465,7 +806,9 @@ export async function getDatabaseSchema(options?: { forceRefresh?: boolean }): P
     };
     const props = db.properties ?? {};
     let titleKey = 'Name';
+    let statusKey = 'Status';
     let statusType: 'select' | 'status' = 'status';
+    let agentKey: string | undefined;
     const agentOptions: string[] = [];
     let descriptionKey: string | undefined;
     let dueDateKey: string | undefined;
@@ -481,15 +824,18 @@ export async function getDatabaseSchema(options?: { forceRefresh?: boolean }): P
             titleKey = key;
             continue;
         }
-        if (def.type === 'status' && def.status?.options) {
+        if (def.type === 'status' && def.status?.options && (key === 'Status' || key === 'status')) {
+            statusKey = key;
             statusType = 'status';
             continue;
         }
         if (def.type === 'select' && (key === 'Status' || key === 'status')) {
+            statusKey = key;
             statusType = 'select';
             continue;
         }
-        if (key === 'Agent' && def.select?.options) {
+        if (key.trim().toLowerCase() === 'agent' && def.select?.options) {
+            agentKey = key;
             for (const o of def.select.options) {
                 if (o.name) agentOptions.push(o.name);
             }
@@ -528,6 +874,10 @@ export async function getDatabaseSchema(options?: { forceRefresh?: boolean }): P
         if ((key === 'Cron Job ID' || key === 'CronJobId') && def.type === 'rich_text') cronJobIdKey = key;
     }
     const recurUnitKey = RECUR_UNIT_NAMES.find((n) => props[n]?.type);
+    const recurUnitType =
+        recurUnitKey && (props[recurUnitKey]?.type === 'select' || props[recurUnitKey]?.type === 'rich_text')
+            ? (props[recurUnitKey]?.type as 'rich_text' | 'select')
+            : undefined;
     const recurIntervalKey = RECUR_INTERVAL_NAMES.find((n) => props[n]?.type);
     const recurTimeKey = RECUR_TIME_NAMES.find((n) => props[n]?.type);
     const recurEndKey = RECUR_END_NAMES.find((n) => props[n]?.type);
@@ -535,7 +885,9 @@ export async function getDatabaseSchema(options?: { forceRefresh?: boolean }): P
     const recurEndDateKey = RECUR_END_DATE_NAMES.find((n) => props[n]?.type);
     const result: NotionDatabaseSchema = {
         titleKey,
+        statusKey,
         statusType,
+        agentKey,
         agentOptions,
         descriptionKey,
         dueDateKey,
@@ -545,6 +897,7 @@ export async function getDatabaseSchema(options?: { forceRefresh?: boolean }): P
         cronKey,
         cronJobIdKey,
         recurUnitKey,
+        recurUnitType,
         recurIntervalKey,
         recurTimeKey,
         recurEndKey,
@@ -560,14 +913,22 @@ export async function getDatabaseSchema(options?: { forceRefresh?: boolean }): P
 
     schemaCache = { data: result, at: Date.now() };
     return result;
+    })();
+
+    try {
+        return await schemaCachePromise;
+    } finally {
+        schemaCachePromise = null;
+    }
 }
 
 /** Create OpenClaw agents for any Notion Agent select option that does not exist yet (default model, no fallbacks). */
 function syncAgentsFromNotionOptions(agentOptions: string[]): void {
     if (!agentOptions?.length) return;
     const { agents, availableModels, config } = getOpenClawData();
+    const configTyped = config as { agents?: { defaults?: { model?: { primary?: string } } } };
     const defaultModel =
-        availableModels[0] ?? (config as any)?.agents?.defaults?.model?.primary ?? '';
+        availableModels[0] ?? configTyped.agents?.defaults?.model?.primary ?? '';
     if (!defaultModel) return;
 
     const existingIds = new Set(agents.map((a) => a.id));
@@ -604,7 +965,8 @@ export async function addAgentSelectOption(agentName: string): Promise<void> {
             }
         >;
     };
-    const agentProp = db.properties?.['Agent'];
+    const agentKey = Object.keys(db.properties ?? {}).find((k) => k.trim().toLowerCase() === 'agent');
+    const agentProp = agentKey ? db.properties?.[agentKey] : undefined;
     if (!agentProp || agentProp.type !== 'select') {
         throw new Error('Tasks database has no Agent select property');
     }
@@ -622,7 +984,7 @@ export async function addAgentSelectOption(agentName: string): Promise<void> {
         headers: notionHeaders(apiKey),
         body: JSON.stringify({
             properties: {
-                Agent: {
+                [agentKey!]: {
                     select: { options },
                 },
             },
@@ -655,7 +1017,8 @@ export async function removeAgentSelectOption(agentName: string): Promise<void> 
             }
         >;
     };
-    const agentProp = db.properties?.['Agent'];
+    const agentKey = Object.keys(db.properties ?? {}).find((k) => k.trim().toLowerCase() === 'agent');
+    const agentProp = agentKey ? db.properties?.[agentKey] : undefined;
     if (!agentProp || agentProp.type !== 'select') {
         throw new Error('Tasks database has no Agent select property');
     }
@@ -674,7 +1037,7 @@ export async function removeAgentSelectOption(agentName: string): Promise<void> 
         headers: notionHeaders(apiKey),
         body: JSON.stringify({
             properties: {
-                Agent: {
+                [agentKey!]: {
                     select: { options },
                 },
             },
@@ -713,16 +1076,17 @@ export async function updateTaskProperties(
         payload.recurEndDate !== undefined;
     if (!hasAny) return;
 
+    await ensureTaskDatabaseProperties();
     const schema = await getDatabaseSchema();
 
     if (payload.status !== undefined) {
-        properties.Status =
+        (properties as Record<string, unknown>)[schema.statusKey] =
             schema.statusType === 'status'
                 ? { status: { name: payload.status } }
                 : { select: { name: payload.status } };
     }
-    if (payload.agent !== undefined) {
-        properties.Agent = { select: { name: payload.agent } };
+    if (payload.agent !== undefined && schema.agentKey) {
+        (properties as Record<string, unknown>)[schema.agentKey] = { select: { name: payload.agent } };
     }
     if (payload.description !== undefined && schema.descriptionKey) {
         (properties as Record<string, unknown>)[schema.descriptionKey] = {
@@ -775,10 +1139,13 @@ export async function updateTaskProperties(
                 : { rich_text: [] };
     }
     if (payload.recurUnit !== undefined && schema.recurUnitKey) {
+        const recurUnitValue = toNotionRecurUnitValue(payload.recurUnit);
         (properties as Record<string, unknown>)[schema.recurUnitKey] =
-            payload.recurUnit != null && payload.recurUnit !== ''
-                ? { rich_text: [{ type: 'text' as const, text: { content: payload.recurUnit } }] }
-                : { rich_text: [] };
+            recurUnitValue != null && recurUnitValue !== ''
+                ? (schema.recurUnitType === 'select'
+                    ? { select: { name: recurUnitValue } }
+                    : { rich_text: [{ type: 'text' as const, text: { content: recurUnitValue } }] })
+                : (schema.recurUnitType === 'select' ? { select: null } : { rich_text: [] });
     }
     if (payload.recurInterval !== undefined && schema.recurIntervalKey) {
         (properties as Record<string, unknown>)[schema.recurIntervalKey] =
@@ -1036,6 +1403,7 @@ export async function createTask(params: {
     recurEndCount?: number | null;
     recurEndDate?: string | null;
 }): Promise<NotionTask> {
+    await ensureTaskDatabaseProperties();
     const { apiKey, databaseId } = getConfig();
     const schema = await getDatabaseSchema();
     const status = params.status ?? 'To Do';
@@ -1048,8 +1416,8 @@ export async function createTask(params: {
         [schema.titleKey]: {
             title: [{ type: 'text', text: { content: params.title } }],
         },
-        Status: statusPayload,
-        Agent: { select: { name: params.agent } },
+        [schema.statusKey]: statusPayload,
+        ...(schema.agentKey ? { [schema.agentKey]: { select: { name: params.agent } } } : {}),
     };
     if (params.description != null && params.description !== '' && schema.descriptionKey) {
         (properties as Record<string, unknown>)[schema.descriptionKey] = {
@@ -1069,10 +1437,12 @@ export async function createTask(params: {
             rich_text: [{ type: 'text' as const, text: { content: params.cronJobId } }],
         };
     }
-    if (schema.recurUnitKey && params.recurUnit != null && params.recurUnit !== '') {
-        (properties as Record<string, unknown>)[schema.recurUnitKey] = {
-            rich_text: [{ type: 'text' as const, text: { content: params.recurUnit } }],
-        };
+    const recurUnitValue = toNotionRecurUnitValue(params.recurUnit);
+    if (schema.recurUnitKey && recurUnitValue != null && recurUnitValue !== '') {
+        (properties as Record<string, unknown>)[schema.recurUnitKey] =
+            schema.recurUnitType === 'select'
+                ? { select: { name: recurUnitValue } }
+                : { rich_text: [{ type: 'text' as const, text: { content: recurUnitValue } }] };
     }
     if (schema.recurIntervalKey && params.recurInterval != null) {
         (properties as Record<string, unknown>)[schema.recurIntervalKey] = { number: params.recurInterval };
@@ -1148,7 +1518,7 @@ export async function createTask(params: {
     if (schema.recurringKey) task.recurring = extractCheckboxByKey(props, schema.recurringKey);
     if (schema.cronKey) task.cron = extractRichTextByKey(props, schema.cronKey);
     if (schema.cronJobIdKey) task.cronJobId = extractRichTextByKey(props, schema.cronJobIdKey);
-    if (schema.recurUnitKey) task.recurUnit = extractRichTextByKey(props, schema.recurUnitKey) ?? undefined;
+    if (schema.recurUnitKey) task.recurUnit = normalizeRecurUnitValue(extractTextOrSelectByKey(props, schema.recurUnitKey));
     if (schema.recurIntervalKey) task.recurInterval = extractNumberByKey(props, schema.recurIntervalKey);
     if (schema.recurTimeKey) task.recurTime = extractRichTextByKey(props, schema.recurTimeKey) ?? undefined;
     if (schema.recurEndKey) task.recurEnd = extractRichTextByKey(props, schema.recurEndKey) ?? undefined;

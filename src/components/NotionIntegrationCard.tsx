@@ -16,6 +16,21 @@ type Props = {
     returnTo?: string;
 };
 
+type SchemaFieldHealth = {
+    key: string;
+    required: boolean;
+    status: 'present' | 'missing' | 'incompatible';
+    foundKey?: string;
+    foundType?: string;
+    expected: string[];
+};
+
+type SchemaHealth = {
+    ok: boolean;
+    summary: { present: number; missing: number; incompatible: number };
+    fields: SchemaFieldHealth[];
+};
+
 const NOTION_INTEGRATIONS_URL = 'https://www.notion.so/my-integrations';
 
 const DEFAULT_RETURN_TO = '/integrations';
@@ -24,6 +39,10 @@ export function NotionIntegrationCard({ connected, canDisconnect, canConnect, wo
     const router = useRouter();
     const [disconnecting, setDisconnecting] = useState(false);
     const [togglingTasks, setTogglingTasks] = useState(false);
+    const [schemaHealth, setSchemaHealth] = useState<SchemaHealth | null>(null);
+    const [schemaHealthLoading, setSchemaHealthLoading] = useState(false);
+    const [schemaRepairing, setSchemaRepairing] = useState(false);
+    const [schemaHealthError, setSchemaHealthError] = useState<string | null>(null);
     const setupDialogRef = useRef<HTMLDialogElement>(null);
 
     useEffect(() => {
@@ -31,6 +50,27 @@ export function NotionIntegrationCard({ connected, canDisconnect, canConnect, wo
             setupDialogRef.current.showModal();
         }
     }, [showSetupOnMount]);
+
+    useEffect(() => {
+        if (!connected || !notionTasksEnabled) return;
+        let cancelled = false;
+        const load = async () => {
+            setSchemaHealthLoading(true);
+            setSchemaHealthError(null);
+            try {
+                const res = await fetch('/api/notion/schema-health');
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) throw new Error(data.error || 'Failed to load Notion schema health');
+                if (!cancelled) setSchemaHealth(data as SchemaHealth);
+            } catch (e) {
+                if (!cancelled) setSchemaHealthError(e instanceof Error ? e.message : 'Failed to load Notion schema health');
+            } finally {
+                if (!cancelled) setSchemaHealthLoading(false);
+            }
+        };
+        load();
+        return () => { cancelled = true; };
+    }, [connected, notionTasksEnabled]);
 
     const handleDisconnect = async () => {
         if (!canDisconnect || disconnecting) return;
@@ -55,6 +95,38 @@ export function NotionIntegrationCard({ connected, canDisconnect, canConnect, wo
             if (res.ok) router.refresh();
         } finally {
             setTogglingTasks(false);
+        }
+    };
+
+    const refreshSchemaHealth = async () => {
+        setSchemaHealthLoading(true);
+        setSchemaHealthError(null);
+        try {
+            const res = await fetch('/api/notion/schema-health');
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data.error || 'Failed to load Notion schema health');
+            setSchemaHealth(data as SchemaHealth);
+        } catch (e) {
+            setSchemaHealthError(e instanceof Error ? e.message : 'Failed to load Notion schema health');
+        } finally {
+            setSchemaHealthLoading(false);
+        }
+    };
+
+    const repairSchema = async () => {
+        if (schemaRepairing) return;
+        setSchemaRepairing(true);
+        setSchemaHealthError(null);
+        try {
+            const res = await fetch('/api/notion/schema-health', { method: 'POST' });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data.error || 'Failed to repair Notion schema');
+            setSchemaHealth((data.health ?? null) as SchemaHealth | null);
+            router.refresh();
+        } catch (e) {
+            setSchemaHealthError(e instanceof Error ? e.message : 'Failed to repair Notion schema');
+        } finally {
+            setSchemaRepairing(false);
         }
     };
 
@@ -97,6 +169,70 @@ export function NotionIntegrationCard({ connected, canDisconnect, canConnect, wo
                         Turn off to use local tasks only on the Tasks board.
                     </p>
                 </div>
+            )}
+            {connected && notionTasksEnabled && (
+                <details className="integration-card-schema-health">
+                    <summary className="integration-card-schema-health-header integration-card-schema-summary-toggle">
+                        <div>
+                            <p className="integration-card-schema-title">Tasks schema health</p>
+                            <p className="integration-card-hint" style={{ marginTop: 2 }}>
+                                Checks the selected Notion database fields used by the Tasks board.
+                            </p>
+                        </div>
+                        <div className="integration-card-schema-summary-right">
+                            {schemaHealth && (
+                                <span className={`integration-card-badge ${schemaHealth.ok ? 'connected' : 'disconnected'}`}>
+                                    {schemaHealth.ok ? 'Ready' : 'Needs attention'}
+                                </span>
+                            )}
+                            <span className="details-chevron" aria-hidden>▾</span>
+                        </div>
+                    </summary>
+
+                    <div className="integration-card-schema-actions">
+                        <button type="button" className="btn-secondary btn-sm" onClick={refreshSchemaHealth} disabled={schemaHealthLoading || schemaRepairing}>
+                            {schemaHealthLoading ? 'Checking…' : 'Check'}
+                        </button>
+                        <button type="button" className="btn-secondary btn-sm" onClick={repairSchema} disabled={schemaRepairing || schemaHealthLoading}>
+                            {schemaRepairing ? 'Repairing…' : 'Repair missing fields'}
+                        </button>
+                    </div>
+
+                    {schemaHealthError && (
+                        <p className="integration-card-hint" style={{ color: 'var(--color-danger, #dc2626)' }}>
+                            {schemaHealthError}
+                        </p>
+                    )}
+
+                    {schemaHealth && (
+                        <>
+                            <div className="integration-card-schema-summary">
+                                <span className="integration-card-hint" style={{ marginTop: 0 }}>
+                                    {schemaHealth.summary.present} present · {schemaHealth.summary.missing} missing · {schemaHealth.summary.incompatible} incompatible
+                                </span>
+                            </div>
+                            <ul className="integration-card-schema-list">
+                                {schemaHealth.fields.map((field) => (
+                                    <li key={field.key} className="integration-card-schema-item">
+                                        <span className="integration-card-schema-item-name">
+                                            {field.key}
+                                            {!field.required ? <span className="integration-card-schema-optional"> (optional)</span> : null}
+                                        </span>
+                                        <span className={`integration-card-schema-status status-${field.status}`}>
+                                            {field.status}
+                                        </span>
+                                        {(field.status !== 'present' || field.foundKey) && (
+                                            <div className="integration-card-schema-item-detail">
+                                                {field.foundKey ? <>Found: <code>{field.foundKey}</code>{field.foundType ? ` (${field.foundType})` : ''}. </> : null}
+                                                Expected: {field.expected.join(' or ')}
+                                            </div>
+                                        )}
+                                    </li>
+                                ))}
+                            </ul>
+                        </>
+                    )}
+                </details>
             )}
             <div className="integration-card-actions">
                 {connected && canDisconnect && (

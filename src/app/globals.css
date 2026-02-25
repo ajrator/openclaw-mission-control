@@ -800,7 +800,93 @@
 }
 
 .integration-card-hint {
-  @apply text-xs text-slate-500 mt-2;
+  @apply text-xs text-muted-foreground dark:text-muted-foreground-dark mt-2;
+}
+
+.integration-card-schema-health {
+  @apply mx-4 mb-4 p-3 rounded-cleo-lg border border-border dark:border-border-dark bg-muted/30 dark:bg-muted-dark/20;
+}
+
+.integration-card-schema-health-header {
+  @apply flex flex-wrap items-start justify-between gap-2;
+}
+
+.integration-card-schema-summary-toggle {
+  @apply cursor-pointer list-none select-none;
+}
+
+.integration-card-schema-summary-toggle::-webkit-details-marker {
+  display: none;
+}
+
+.integration-card-schema-summary-right {
+  @apply inline-flex items-center gap-2 shrink-0;
+}
+
+.integration-card-schema-title {
+  @apply m-0 text-sm font-semibold text-foreground dark:text-foreground-dark;
+}
+
+.integration-card-schema-actions {
+  @apply flex flex-wrap items-center gap-2;
+}
+
+.integration-card-schema-health:not([open]) .integration-card-schema-actions,
+.integration-card-schema-health:not([open]) .integration-card-schema-summary,
+.integration-card-schema-health:not([open]) .integration-card-schema-list {
+  @apply hidden;
+}
+
+.integration-card-schema-health[open] .integration-card-schema-actions {
+  @apply mt-3;
+}
+
+.integration-card-schema-summary {
+  @apply mt-2 flex flex-wrap items-center gap-2;
+}
+
+.integration-card-schema-list {
+  @apply mt-3 flex flex-col gap-2 m-0 p-0 list-none;
+}
+
+.integration-card-schema-item {
+  @apply p-2 rounded-md border border-border/70 dark:border-border-dark/70 bg-card dark:bg-card-dark;
+}
+
+.integration-card-schema-item-name {
+  @apply text-sm font-medium text-foreground dark:text-foreground-dark;
+}
+
+.integration-card-schema-optional {
+  @apply text-xs font-normal text-muted-foreground dark:text-muted-foreground-dark;
+}
+
+.integration-card-schema-status {
+  @apply inline-flex items-center ml-2 px-1.5 py-0.5 rounded-full text-[11px] font-medium capitalize;
+}
+
+.integration-card-schema-status.status-present {
+  @apply bg-emerald-500/10 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300;
+}
+
+.integration-card-schema-status.status-missing {
+  @apply bg-amber-500/10 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300;
+}
+
+.integration-card-schema-status.status-incompatible {
+  @apply bg-red-500/10 text-red-700 dark:bg-red-500/20 dark:text-red-300;
+}
+
+.integration-card-schema-item-detail {
+  @apply mt-1 text-xs text-muted-foreground dark:text-muted-foreground-dark;
+}
+
+.details-chevron {
+  @apply inline-flex items-center justify-center w-6 h-6 rounded-md text-sm font-semibold text-foreground dark:text-foreground-dark bg-muted/70 dark:bg-muted-dark/60 border border-border/70 dark:border-border-dark/70 transition-transform duration-150;
+}
+
+details[open] > summary .details-chevron {
+  transform: rotate(180deg);
 }
 
 .integration-setup-dialog {
@@ -1027,6 +1113,18 @@
   @apply flex items-center justify-between gap-2 mb-3;
 }
 
+.skills-summary {
+  @apply cursor-pointer list-none select-none mb-0;
+}
+
+.skills-summary::-webkit-details-marker {
+  display: none;
+}
+
+.skills-summary-right {
+  @apply inline-flex items-center gap-2 shrink-0;
+}
+
 .skills-title {
   @apply text-sm font-semibold text-foreground dark:text-foreground-dark;
 }
@@ -1037,6 +1135,14 @@
 
 .skills-list {
   @apply flex flex-col gap-2 min-w-0;
+}
+
+.skills-section:not([open]) .skills-list {
+  @apply hidden;
+}
+
+.skills-section[open] .skills-list {
+  @apply mt-3;
 }
 
 .skill-item {
