@@ -30,9 +30,29 @@
   @apply flex-1 min-h-0 overflow-y-auto bg-background dark:bg-background-dark;
 }
 
+.app-mobile-topbar {
+  @apply hidden;
+}
+
+.app-mobile-menu-btn {
+  @apply inline-flex items-center justify-center w-9 h-9 rounded-md border border-border dark:border-border-dark bg-card dark:bg-card-dark text-foreground dark:text-foreground-dark cursor-pointer;
+}
+
+.app-mobile-title {
+  @apply text-sm font-semibold text-foreground dark:text-foreground-dark truncate;
+}
+
+.sidebar-mobile-backdrop {
+  @apply hidden;
+}
+
 /* Sidebar – Cleopatra: card bg, border, active primary-tint */
 .sidebar {
   @apply w-sidebar flex-shrink-0 flex flex-col max-h-screen min-h-0 bg-card dark:bg-card-dark border-r border-border dark:border-border-dark py-5 px-3 gap-2 transition-all duration-200 overflow-x-hidden overflow-y-auto min-w-0;
+}
+
+.sidebar--mobile-open {
+  @apply translate-x-0;
 }
 
 .sidebar--collapsed {
@@ -301,6 +321,10 @@
 
 .chat-agent-row {
   @apply flex items-center justify-between gap-4 w-full;
+}
+
+.chat-agent-actions {
+  @apply flex items-center gap-2;
 }
 
 .chat-agent-select {
@@ -1726,6 +1750,352 @@ details[open] > summary .details-chevron {
 .fallback-move-btn,
 .fallback-remove-btn {
   @apply p-1.5 border-none bg-transparent text-xs cursor-pointer rounded-md text-muted-foreground dark:text-muted-foreground-dark hover:bg-accent dark:hover:bg-accent-dark hover:text-foreground dark:hover:text-foreground-dark transition-colors;
+}
+
+@media (max-width: 1023px) {
+  .app-shell {
+    @apply relative;
+  }
+
+  .sidebar {
+    @apply fixed left-0 top-0 bottom-0 z-[60] w-[18rem] max-w-[85vw] border-r shadow-none translate-x-[-105%] transition-transform duration-200;
+  }
+
+  .sidebar.sidebar--collapsed {
+    @apply w-[18rem] p-5 px-3;
+  }
+
+  .sidebar.sidebar--collapsed .sidebar-logo .logo-text,
+  .sidebar.sidebar--collapsed .sidebar-logo .logo-icon,
+  .sidebar.sidebar--collapsed .nav-section-label,
+  .sidebar.sidebar--collapsed .nav-label,
+  .sidebar.sidebar--collapsed .footer-status .status-text,
+  .sidebar.sidebar--collapsed .theme-toggle-group {
+    display: revert;
+  }
+
+  .sidebar.sidebar--collapsed .sidebar-logo .logo-text {
+    display: flex;
+    @apply flex-col;
+  }
+
+  .sidebar.sidebar--collapsed .theme-toggle-group {
+    display: flex;
+  }
+
+  .sidebar.sidebar--collapsed .sidebar-nav,
+  .sidebar.sidebar--collapsed .sidebar-signout-btn {
+    @apply w-full;
+  }
+
+  .sidebar.sidebar--collapsed .sidebar-toggle {
+    @apply ml-auto w-8 h-8;
+  }
+
+  .sidebar.sidebar--collapsed .nav-item,
+  .sidebar.sidebar--collapsed .sidebar-signout-btn {
+    @apply justify-start p-2.5;
+  }
+
+  .sidebar-mobile-backdrop {
+    @apply fixed inset-0 z-50 block border-0 bg-black/50 cursor-pointer;
+  }
+
+  .app-mobile-topbar {
+    @apply sticky top-0 z-40 flex items-center gap-3 p-4 mb-2 border-b border-border dark:border-border-dark bg-background/90 dark:bg-background-dark/90 backdrop-blur;
+  }
+
+  .main-content {
+    @apply w-full;
+  }
+
+  .page {
+    @apply p-4 md:p-6;
+  }
+
+  .page.chat-page {
+    @apply p-4;
+  }
+}
+
+@media (max-width: 767px) {
+  .page-header {
+    @apply gap-3 mb-4;
+  }
+
+  .page-title {
+    @apply text-xl;
+  }
+
+  .modal-backdrop,
+  .modal-overlay {
+    @apply p-2 items-end;
+  }
+
+  .modal-content,
+  .task-detail-modal,
+  .create-task-modal,
+  .integration-setup-dialog-inner {
+    @apply w-full max-w-none max-h-[92vh] rounded-t-xl rounded-b-none;
+  }
+
+  .modal-footer,
+  .modal-actions {
+    @apply flex-wrap;
+  }
+
+  .modal-footer > button,
+  .modal-actions > button {
+    @apply flex-1 min-w-[8rem];
+  }
+
+  .chat-header {
+    @apply gap-3 mb-3 pb-3 -mx-4 -mt-4 px-4 pt-4;
+  }
+
+  .chat-agent-row {
+    @apply flex-col items-stretch gap-2;
+  }
+
+  .chat-agent-actions {
+    @apply flex-wrap w-full;
+  }
+
+  .chat-agent-actions > button {
+    @apply flex-1 min-w-[7.5rem];
+  }
+
+  .chat-agent-select {
+    @apply min-w-0 w-full;
+  }
+
+  .chat-messages {
+    @apply gap-3 py-3;
+  }
+
+  .chat-msg {
+    @apply px-2;
+  }
+
+  .chat-msg-avatar {
+    @apply hidden;
+  }
+
+  .chat-msg-bubble {
+    @apply max-w-full px-3 py-2.5;
+  }
+
+  .chat-msg-copy {
+    @apply ml-0;
+  }
+
+  .chat-input-wrap {
+    @apply flex-col items-stretch gap-2 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))];
+  }
+
+  .chat-send-btn {
+    @apply w-full;
+  }
+
+  .tasks-toolbar {
+    @apply gap-3 mb-4;
+  }
+
+  .tasks-toolbar-actions {
+    @apply w-full gap-2;
+  }
+
+  .tasks-toolbar-actions > button,
+  .tasks-toolbar-actions > .btn-secondary,
+  .tasks-toolbar-actions > .btn-primary,
+  .tasks-toolbar-actions > .btn-danger {
+    @apply flex-none;
+  }
+
+  .tasks-view-toggle {
+    @apply w-full;
+  }
+
+  .tasks-view-tab {
+    @apply flex-1 text-xs px-2.5;
+  }
+
+  .tasks-select-all {
+    @apply ml-auto;
+  }
+
+  .eisenhower-matrix-toolbar {
+    @apply flex-wrap items-start;
+  }
+
+  .eisenhower-axes {
+    @apply hidden;
+  }
+
+  .eisenhower-grid {
+    @apply grid-cols-1 gap-3;
+  }
+
+  .kanban-board {
+    @apply gap-3 pb-3 snap-x snap-mandatory;
+  }
+
+  .kanban-column {
+    @apply min-w-[86vw] p-3 snap-start;
+  }
+
+  .kanban-card {
+    @apply p-3;
+  }
+
+  .kanban-card-top {
+    @apply gap-2 mb-2;
+  }
+
+  .kanban-card-title-row {
+    @apply flex-wrap items-start;
+  }
+
+  .kanban-card-title {
+    @apply basis-full;
+  }
+
+  .kanban-card-task-actions {
+    @apply order-3 basis-full justify-start;
+  }
+
+  .kanban-card-archive-btn {
+    @apply ml-auto;
+  }
+
+  .kanban-card-agent-row,
+  .kanban-card-due-row {
+    @apply items-start flex-col gap-1;
+  }
+
+  .kanban-card-agent-label,
+  .kanban-card-due-label {
+    @apply text-xs;
+  }
+
+  .date-picker-wrap {
+    @apply w-full;
+  }
+
+  .task-detail-modal-header {
+    @apply flex-col items-stretch gap-3;
+  }
+
+  .task-detail-modal-header .modal-title {
+    @apply whitespace-normal;
+  }
+
+  .task-detail-modal-actions {
+    @apply w-full;
+  }
+
+  .task-detail-modal-actions > * {
+    @apply flex-none;
+  }
+
+  .task-detail-meta {
+    @apply grid-cols-1 gap-y-1;
+  }
+
+  .task-detail-meta dt {
+    @apply mt-1;
+  }
+
+  .create-task-modal-header {
+    @apply items-stretch;
+  }
+
+  .create-task-modal-recurring-block {
+    @apply ml-0;
+  }
+
+  .agent-card-sortable {
+    @apply flex-col gap-2;
+  }
+
+  .agent-card-reorder {
+    @apply flex-row order-first justify-end;
+  }
+
+  .agent-card-header {
+    @apply p-4 gap-3 flex-wrap;
+  }
+
+  .agent-meta {
+    @apply basis-full;
+  }
+
+  .agent-stats {
+    @apply flex-col items-start gap-2;
+  }
+
+  .agent-stat-sep {
+    @apply hidden;
+  }
+
+  .model-selector-group {
+    @apply w-full flex-wrap;
+  }
+
+  .model-select {
+    @apply w-full;
+  }
+
+  .fallbacks-header,
+  .fallbacks-section-header {
+    @apply flex-wrap items-start;
+  }
+
+  .fallback-row {
+    @apply items-start;
+  }
+
+  .fallback-row .form-select,
+  .fallback-row .form-input {
+    @apply min-w-0;
+  }
+
+  .integration-card-header {
+    @apply p-3;
+  }
+
+  .integration-card-desc,
+  .integration-card-actions,
+  .integration-card-toggle-row {
+    @apply px-3 pb-3;
+  }
+
+  .integration-card-actions > button,
+  .integration-card-actions > a {
+    @apply flex-1 justify-center;
+  }
+
+  .integration-card-schema-health {
+    @apply mx-3 mb-3;
+  }
+
+  .integration-card-schema-actions > button {
+    @apply flex-1;
+  }
+
+  .models-table th,
+  .models-table td {
+    @apply p-2;
+  }
+
+  .model-actions-cell {
+    @apply flex-wrap;
+  }
+
+  .onboarding-full .page,
+  .onboarding-full {
+    @apply p-0;
+  }
 }
 
 .fallback-remove-btn {

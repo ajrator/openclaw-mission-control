@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
+import { sanitizeAgentFallbacks } from '@/lib/agent-models';
 
 const configPath = () => path.join(os.homedir(), '.openclaw', 'openclaw.json');
 
@@ -130,14 +131,17 @@ export async function POST(request: Request) {
             const currentFallbacks = Array.isArray((currentModel as { fallbacks?: string[] })?.fallbacks) ? (currentModel as { fallbacks?: string[] }).fallbacks : [];
 
             const primary = model !== undefined ? model : currentPrimary;
-            const nextFallbacks = fallbacks !== undefined ? (Array.isArray(fallbacks) ? fallbacks : []) : (currentFallbacks ?? []);
+            const rawFallbacks = fallbacks !== undefined ? (Array.isArray(fallbacks) ? fallbacks : []) : (currentFallbacks ?? []);
 
-            if (primary === undefined && nextFallbacks.length === 0) {
+            if (primary === undefined && rawFallbacks.length === 0) {
                 return NextResponse.json({ error: 'Missing model (primary)' }, { status: 400 });
             }
 
+            const finalPrimary = (primary ?? currentPrimary ?? '').trim();
+            const nextFallbacks = sanitizeAgentFallbacks(finalPrimary, rawFallbacks);
+
             agentEntry.model = {
-                primary: primary ?? currentPrimary ?? '',
+                primary: finalPrimary,
                 fallbacks: nextFallbacks.length > 0 ? nextFallbacks : undefined,
             };
 

@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { getGatewayUrl, getGatewayAuth, getGatewayControlUiOrigin, resolveDirectChatSessionKey } from '@/lib/openclaw';
 import { withGatewayWs } from '@/lib/gateway-client';
 
-/** Clear/reset chat history for an agent's direct chat session (prefers reset over delete). */
+/** Delete an agent direct-chat session and transcript. */
 export async function POST(request: Request) {
     const gatewayUrl = getGatewayUrl();
     if (!gatewayUrl) {
@@ -30,18 +30,9 @@ export async function POST(request: Request) {
         const auth = getGatewayAuth();
         const origin = getGatewayControlUiOrigin();
         await withGatewayWs(gatewayUrl, { auth, origin }, async (_ws, sendReq) => {
-            try {
-                await sendReq('sessions.reset', { key: sessionKey, reason: 'reset' });
-            } catch (resetErr) {
-                try {
-                    await sendReq('sessions.delete', { key: sessionKey, deleteTranscript: true });
-                } catch {
-                    const msg = resetErr instanceof Error ? resetErr.message : String(resetErr);
-                    throw new Error(msg);
-                }
-            }
+            await sendReq('sessions.delete', { key: sessionKey, deleteTranscript: true });
         });
-        return NextResponse.json({ success: true, sessionKey });
+        return NextResponse.json({ success: true, deletedSessionKey: sessionKey });
     } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         if (message.includes('Gateway closed') || message.includes('not open') || message.includes('ECONNREFUSED')) {
@@ -51,7 +42,7 @@ export async function POST(request: Request) {
             );
         }
         if (/session not found|not found|404/i.test(message)) {
-            return NextResponse.json({ success: true });
+            return NextResponse.json({ success: true, deletedSessionKey: sessionKey });
         }
         return NextResponse.json({ error: message }, { status: 500 });
     }

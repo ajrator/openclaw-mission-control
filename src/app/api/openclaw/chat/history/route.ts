@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getGatewayUrl, getDefaultSessionKey, getGatewayAuth, getGatewayControlUiOrigin } from '@/lib/openclaw';
+import { getGatewayUrl, getGatewayAuth, getGatewayControlUiOrigin, resolveDirectChatSessionKey } from '@/lib/openclaw';
 import { withGatewayWs } from '@/lib/gateway-client';
 
 export async function GET(request: Request) {
@@ -20,7 +20,7 @@ export async function GET(request: Request) {
         return NextResponse.json({ error: 'Missing agentId' }, { status: 400 });
     }
 
-    const sessionKey = sessionKeyParam ?? getDefaultSessionKey(agentId);
+    const sessionKey = resolveDirectChatSessionKey(agentId, sessionKeyParam);
     const limit = limitParam ? Math.min(500, Math.max(1, parseInt(limitParam, 10))) : 100;
 
     try {
@@ -32,7 +32,7 @@ export async function GET(request: Request) {
 
         const payload = result as { messages?: unknown[] } | undefined;
         const messages = Array.isArray(payload?.messages) ? payload.messages : [];
-        return NextResponse.json({ messages });
+        return NextResponse.json({ messages, sessionKey });
     } catch (err) {
         const message = err instanceof Error ? err.message : 'Gateway request failed';
         if (message.includes('Gateway closed') || message.includes('not open') || message.includes('ECONNREFUSED')) {

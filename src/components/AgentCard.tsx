@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Agent } from '@/lib/openclaw';
+import { sanitizeAgentFallbacks } from '@/lib/agent-models';
 import { useAlertConfirm } from '@/components/AlertConfirmProvider';
 
 const MAIN_AGENT_ID = 'main';
@@ -22,7 +23,7 @@ export function AgentCard({ agent }: AgentCardProps) {
 
     const primary = agent.configuredModel || '';
     const [selectedModel, setSelectedModel] = useState(primary);
-    const [fallbacksList, setFallbacksList] = useState<string[]>(agent.fallbacks ?? []);
+    const [fallbacksList, setFallbacksList] = useState<string[]>(sanitizeAgentFallbacks(primary, agent.fallbacks ?? []));
     const [isSaving, setIsSaving] = useState(false);
     const [isSavingFallbacks, setIsSavingFallbacks] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
@@ -38,6 +39,8 @@ export function AgentCard({ agent }: AgentCardProps) {
         (agent.availableModels ?? []).filter(
             (m) => m !== selectedModel && !fallbacksList.includes(m)
         );
+    const primaryOptions =
+        (agent.availableModels ?? []).filter((m) => m === selectedModel || !fallbacksList.includes(m));
 
     const handleSave = async () => {
         setIsSaving(true);
@@ -65,7 +68,7 @@ export function AgentCard({ agent }: AgentCardProps) {
                 body: JSON.stringify({
                     agentId: agent.id,
                     model: selectedModel,
-                    fallbacks: fallbacksList
+                    fallbacks: sanitizeAgentFallbacks(selectedModel, fallbacksList)
                 })
             });
             if (res.ok) router.refresh();
@@ -87,7 +90,7 @@ export function AgentCard({ agent }: AgentCardProps) {
     };
 
     const addFallback = (model: string) => {
-        setFallbacksList([...fallbacksList, model]);
+        setFallbacksList((prev) => sanitizeAgentFallbacks(selectedModel, [...prev, model]));
     };
 
     const handleDelete = async () => {
@@ -129,10 +132,14 @@ export function AgentCard({ agent }: AgentCardProps) {
                                     <select
                                         className="model-select"
                                         value={selectedModel}
-                                        onChange={(e) => setSelectedModel(e.target.value)}
+                                        onChange={(e) => {
+                                            const nextPrimary = e.target.value;
+                                            setSelectedModel(nextPrimary);
+                                            setFallbacksList((prev) => sanitizeAgentFallbacks(nextPrimary, prev));
+                                        }}
                                         disabled={isSaving}
                                     >
-                                        {agent.availableModels.map(m => (
+                                        {primaryOptions.map(m => (
                                             <option key={m} value={m}>{m}</option>
                                         ))}
                                     </select>
