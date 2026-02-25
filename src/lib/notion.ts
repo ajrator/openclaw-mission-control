@@ -635,6 +635,58 @@ export async function addAgentSelectOption(agentName: string): Promise<void> {
     invalidateSchemaCache();
 }
 
+/** Remove an option from the Agent select property in the Tasks database. No-op if option not found. */
+export async function removeAgentSelectOption(agentName: string): Promise<void> {
+    if (!agentName?.trim()) return;
+    const { apiKey, databaseId } = getConfig();
+    const res = await fetch(`${NOTION_API}/databases/${databaseId}`, {
+        headers: notionHeaders(apiKey),
+    });
+    if (!res.ok) {
+        const err = await res.text();
+        throw new Error(`Notion API error ${res.status}: ${err}`);
+    }
+    const db = (await res.json()) as {
+        properties?: Record<
+            string,
+            {
+                type?: string;
+                select?: { options?: Array<{ id?: string; name?: string; color?: string }> };
+            }
+        >;
+    };
+    const agentProp = db.properties?.['Agent'];
+    if (!agentProp || agentProp.type !== 'select') {
+        throw new Error('Tasks database has no Agent select property');
+    }
+    const existing = agentProp.select?.options ?? [];
+    const want = agentName.trim();
+    const options = existing
+        .map((o) => ({
+            ...(o.id && { id: o.id }),
+            name: o.name ?? '',
+            ...(o.color && { color: o.color }),
+        }))
+        .filter((o) => o.name.trim() !== want);
+    if (options.length === existing.length) return; // option not present
+    const patchRes = await fetch(`${NOTION_API}/databases/${databaseId}`, {
+        method: 'PATCH',
+        headers: notionHeaders(apiKey),
+        body: JSON.stringify({
+            properties: {
+                Agent: {
+                    select: { options },
+                },
+            },
+        }),
+    });
+    if (!patchRes.ok) {
+        const err = await patchRes.text();
+        throw new Error(`Notion API PATCH error ${patchRes.status}: ${err}`);
+    }
+    invalidateSchemaCache();
+}
+
 /** Update task properties in Notion. All changes sync to Notion. */
 export async function updateTaskProperties(
     pageId: string,

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
+import { removeAgentSelectOption } from '@/lib/notion';
 
 const MAIN_AGENT_ID = 'main';
 
@@ -59,6 +60,9 @@ export async function DELETE(
             return NextResponse.json({ error: 'Agent not found' }, { status: 404 });
         }
 
+        const agentEntry = config.agents.list[index] as { id: string; identity?: { name?: string } } | undefined;
+        const agentName = agentEntry?.identity?.name ?? agentId;
+
         config.agents.list.splice(index, 1);
         fs.writeFileSync(configPath, JSON.stringify(config, null, 2) + '\n', 'utf-8');
 
@@ -67,6 +71,12 @@ export async function DELETE(
         }
 
         deleteAgentWorkspaceIfExists(openclawDir, agentId);
+
+        try {
+            await removeAgentSelectOption(agentName);
+        } catch (e) {
+            console.warn('Could not remove agent from Notion Agent select:', (e as Error).message);
+        }
 
         return NextResponse.json({ success: true, id: agentId });
     } catch (error: unknown) {
