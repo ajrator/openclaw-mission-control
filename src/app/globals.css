@@ -1767,11 +1767,16 @@ details[open] > summary .details-chevron {
   .sidebar.sidebar--collapsed .nav-label,
   .sidebar.sidebar--collapsed .footer-status .status-text,
   .sidebar.sidebar--collapsed .theme-toggle-group {
-    @apply flex;
+    display: revert;
   }
 
   .sidebar.sidebar--collapsed .sidebar-logo .logo-text {
+    display: flex;
     @apply flex-col;
+  }
+
+  .sidebar.sidebar--collapsed .theme-toggle-group {
+    display: flex;
   }
 
   .sidebar.sidebar--collapsed .sidebar-nav,
