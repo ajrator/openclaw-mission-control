@@ -211,6 +211,13 @@ export function TasksKanban({ initialTasks, initialAgentOptions = [], notionEnab
         return null;
     }, []);
 
+    const hasAssignedAgent = useCallback((task: Task) => Boolean(task.agent && task.agent.trim()), []);
+    const isTaskDoing = useCallback((task: Task) => task.status === 'Doing', []);
+    const isTaskPaused = useCallback((task: Task) => pausedTaskIds.has(task.id), [pausedTaskIds]);
+    const canStartTask = useCallback((task: Task) => hasAssignedAgent(task) && task.status === 'To Do', [hasAssignedAgent]);
+    const canResumeTask = useCallback((task: Task) => hasAssignedAgent(task) && isTaskDoing(task) && isTaskPaused(task), [hasAssignedAgent, isTaskDoing, isTaskPaused]);
+    const canPauseTask = useCallback((task: Task) => hasAssignedAgent(task) && isTaskDoing(task) && !isTaskPaused(task), [hasAssignedAgent, isTaskDoing, isTaskPaused]);
+
     const refreshTasks = useCallback(async () => {
         setRefreshLoading(true);
         try {
@@ -698,9 +705,10 @@ export function TasksKanban({ initialTasks, initialAgentOptions = [], notionEnab
     };
 
     const startSelected = async () => {
-        const selected = tasks.filter((t) => selectedIds.has(t.id) && t.agent);
+        const selectedPool = tasks.filter((t) => selectedIds.has(t.id));
+        const selected = selectedPool.filter(canStartTask);
         if (selected.length === 0) {
-            showAlert('No selected tasks have an agent assigned.');
+            showAlert('No selected tasks can be started (requires agent + To Do status).');
             return;
         }
         setBulkStartLoading(true);
@@ -736,6 +744,8 @@ export function TasksKanban({ initialTasks, initialAgentOptions = [], notionEnab
                         );
                     }
                 }
+                const skipped = selectedPool.length - selected.length;
+                if (skipped > 0) showAlert(`Started ${started.length} task${started.length === 1 ? '' : 's'}. Skipped ${skipped} ineligible task${skipped === 1 ? '' : 's'}.`);
             }
         } finally {
             setBulkStartLoading(false);
@@ -743,9 +753,10 @@ export function TasksKanban({ initialTasks, initialAgentOptions = [], notionEnab
     };
 
     const stopSelected = async () => {
-        const selected = tasks.filter((t) => selectedIds.has(t.id) && t.agent);
+        const selectedPool = tasks.filter((t) => selectedIds.has(t.id));
+        const selected = selectedPool.filter(canPauseTask);
         if (selected.length === 0) {
-            showAlert('No selected tasks have an agent assigned.');
+            showAlert('No selected tasks can be paused (requires active Doing task with agent).');
             return;
         }
         setBulkStopLoading(true);
@@ -764,8 +775,55 @@ export function TasksKanban({ initialTasks, initialAgentOptions = [], notionEnab
             });
             const data = await res.json().catch(() => ({}));
             if (!res.ok) showTaskActionError(res, data);
+            else {
+                setPausedTaskIds((prev) => {
+                    const next = new Set(prev);
+                    for (const t of selected) next.add(t.id);
+                    return next;
+                });
+                const skipped = selectedPool.length - selected.length;
+                if (skipped > 0) showAlert(`Paused ${selected.length} task${selected.length === 1 ? '' : 's'}. Skipped ${skipped} ineligible task${skipped === 1 ? '' : 's'}.`);
+            }
         } finally {
             setBulkStopLoading(false);
+        }
+    };
+
+    const resumeSelected = async () => {
+        const selectedPool = tasks.filter((t) => selectedIds.has(t.id));
+        const selected = selectedPool.filter(canResumeTask);
+        if (selected.length === 0) {
+            showAlert('No selected tasks can be resumed (requires paused Doing task with agent).');
+            return;
+        }
+        setBulkStartLoading(true);
+        try {
+            const res = await fetch('/api/openclaw/task/start', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    taskIds: selected.map((t) => t.id),
+                    tasks: selected.map((t) =>
+                        t.source === 'local'
+                            ? { localTaskId: t.id, agent: t.agent }
+                            : { notionPageId: t.id, agent: t.agent }
+                    ),
+                }),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                showTaskActionError(res, data);
+            } else {
+                setPausedTaskIds((prev) => {
+                    const next = new Set(prev);
+                    for (const t of selected) next.delete(t.id);
+                    return next;
+                });
+                const skipped = selectedPool.length - selected.length;
+                if (skipped > 0) showAlert(`Resumed ${selected.length} task${selected.length === 1 ? '' : 's'}. Skipped ${skipped} ineligible task${skipped === 1 ? '' : 's'}.`);
+            }
+        } finally {
+            setBulkStartLoading(false);
         }
     };
 
@@ -1076,6 +1134,11 @@ const openCreateModal = async () => {
         }
     };
 
+    const selectedTasks = tasks.filter((t) => selectedIds.has(t.id));
+    const selectedStartable = selectedTasks.filter(canStartTask);
+    const selectedResumable = selectedTasks.filter(canResumeTask);
+    const selectedPausable = selectedTasks.filter(canPauseTask);
+
     return (
         <>
             <div className="tasks-toolbar">
@@ -1128,17 +1191,27 @@ const openCreateModal = async () => {
                                 type="button"
                                 className="btn-secondary"
                                 onClick={startSelected}
-                                disabled={bulkStartLoading || bulkStopLoading || tasks.filter((t) => selectedIds.has(t.id) && t.agent).length === 0}
+                                disabled={bulkStartLoading || bulkStopLoading || selectedStartable.length === 0}
                             >
-                                {bulkStartLoading ? 'Starting…' : 'Start selected'}
+                                {bulkStartLoading ? 'Starting…' : `Start selected${selectedStartable.length > 0 ? ` (${selectedStartable.length})` : ''}`}
                             </button>
+                            {selectedResumable.length > 0 && (
+                                <button
+                                    type="button"
+                                    className="btn-secondary"
+                                    onClick={resumeSelected}
+                                    disabled={bulkStartLoading || bulkStopLoading}
+                                >
+                                    {bulkStartLoading ? 'Resuming…' : `Resume selected (${selectedResumable.length})`}
+                                </button>
+                            )}
                             <button
                                 type="button"
                                 className="btn-secondary"
                                 onClick={stopSelected}
-                                disabled={bulkStartLoading || bulkStopLoading || tasks.filter((t) => selectedIds.has(t.id) && t.agent).length === 0}
+                                disabled={bulkStartLoading || bulkStopLoading || selectedPausable.length === 0}
                             >
-                                {bulkStopLoading ? 'Stopping…' : 'Stop selected'}
+                                {bulkStopLoading ? 'Pausing…' : `Pause selected${selectedPausable.length > 0 ? ` (${selectedPausable.length})` : ''}`}
                             </button>
                             <button
                                 type="button"
@@ -1918,18 +1991,6 @@ const KanbanCard = memo(function KanbanCard({
                                         {isStartLoading ? 'Starting…' : 'Start'}
                                     </button>
                                 )}
-                                {task.status === 'Doing' && (
-                                    <button
-                                        type="button"
-                                        className="kanban-card-action-btn"
-                                        onClick={onStop}
-                                        disabled={isStartLoading || isStopLoading}
-                                        title="Stop task"
-                                        aria-label="Stop task"
-                                    >
-                                        {isStopLoading ? 'Stopping…' : 'Stop'}
-                                    </button>
-                                )}
                             </div>
                         )}
                         <button
@@ -2087,18 +2148,6 @@ function TaskDetailModal({
                                     aria-label="Start task"
                                 >
                                     {isStartLoading ? 'Starting…' : 'Start'}
-                                </button>
-                            )}
-                            {task.status === 'Doing' && (
-                                <button
-                                    type="button"
-                                    className="btn-secondary btn-sm"
-                                    onClick={onStop}
-                                    disabled={isStartLoading || isStopLoading}
-                                    title="Stop task"
-                                    aria-label="Stop task"
-                                >
-                                    {isStopLoading ? 'Stopping…' : 'Stop'}
                                 </button>
                             )}
                         </>
