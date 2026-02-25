@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, memo, useEffect, useRef } from 'react';
+import { useState, useCallback, memo, useEffect, useRef, startTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import type { TaskStatus } from '@/lib/notion';
 import type { TaskDetails } from '@/lib/notion';
@@ -283,7 +283,7 @@ export function TasksKanban({ initialTasks, initialAgentOptions = [], notionEnab
                         });
 
                         const openTask = taskModalTask;
-                        if (openTask?.source !== 'local') {
+                        if (openTask && openTask.source !== 'local') {
                             const updatedOpenTask = data.tasks.find((t: Task) => t.id === openTask.id);
                             // Refresh while running, and once more on the Doing -> Done transition
                             // so the final agent writeback appears in the modal.
@@ -691,7 +691,7 @@ export function TasksKanban({ initialTasks, initialAgentOptions = [], notionEnab
             const res = await fetch('/api/openclaw/task/stop', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(body),
+                body: JSON.stringify({ ...body, mode: 'pause' }),
             });
             const data = await res.json().catch(() => ({}));
             if (!res.ok) showTaskActionError(res, data);
@@ -766,6 +766,7 @@ export function TasksKanban({ initialTasks, initialAgentOptions = [], notionEnab
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
+                    mode: 'pause',
                     taskIds: selected.map((t) => t.id),
                     tasks: selected.map((t) =>
                         t.source === 'local'
@@ -2108,13 +2109,24 @@ function TaskDetailModal({
     isPaused?: boolean;
 }) {
     const contentRef = useRef<HTMLDivElement>(null);
+    const detailsDescription = details?.description ?? '';
     const [descriptionDraft, setDescriptionDraft] = useState(details?.description ?? '');
+    const [descriptionDirty, setDescriptionDirty] = useState(false);
     const [savingDescription, setSavingDescription] = useState(false);
     const [sensitivityDialogOpen, setSensitivityDialogOpen] = useState(false);
     const [sensitivityFindingsPending, setSensitivityFindingsPending] = useState<string[]>([]);
     useEffect(() => {
-        if (details) setDescriptionDraft(details.description ?? '');
-    }, [details?.description, task?.id]);
+        startTransition(() => {
+            setDescriptionDraft(detailsDescription);
+            setDescriptionDirty(false);
+        });
+    }, [detailsDescription, task.id]);
+    useEffect(() => {
+        if (descriptionDirty) return;
+        startTransition(() => {
+            setDescriptionDraft(detailsDescription);
+        });
+    }, [descriptionDirty, detailsDescription]);
     useEffect(() => {
         contentRef.current?.scrollTo(0, 0);
     }, [task.id]);
@@ -2128,6 +2140,7 @@ function TaskDetailModal({
         }
         setSavingDescription(true);
         await onUpdateTask({ description: descriptionDraft });
+        setDescriptionDirty(false);
         setSavingDescription(false);
     };
 
@@ -2136,11 +2149,13 @@ function TaskDetailModal({
         setSensitivityFindingsPending([]);
         setSavingDescription(true);
         await onUpdateTask({ description: descriptionDraft });
+        setDescriptionDirty(false);
         setSavingDescription(false);
     };
 
     const handleSensitivityRevert = () => {
         setDescriptionDraft(details?.description ?? '');
+        setDescriptionDirty(false);
         setSensitivityDialogOpen(false);
         setSensitivityFindingsPending([]);
     };
@@ -2380,7 +2395,10 @@ function TaskDetailModal({
                         <textarea
                             className="task-detail-description-input"
                             value={descriptionDraft}
-                            onChange={(e) => setDescriptionDraft(e.target.value)}
+                            onChange={(e) => {
+                                setDescriptionDraft(e.target.value);
+                                setDescriptionDirty(true);
+                            }}
                             placeholder="e.g. Summarize the meeting notes in the linked doc and add action items to the bottom."
                             rows={4}
                         />

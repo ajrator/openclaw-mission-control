@@ -17,6 +17,7 @@ export function LayoutShell({
     const router = useRouter();
     const [checked, setChecked] = useState(false);
     const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+    const bypassOnboardingCheck = pathname?.startsWith('/onboarding') || pathname?.startsWith('/api/');
 
     const pageTitle = pathname?.startsWith('/agents')
         ? 'Agents'
@@ -33,10 +34,7 @@ export function LayoutShell({
                             : 'Mission Control';
 
     useEffect(() => {
-        if (pathname?.startsWith('/onboarding') || pathname?.startsWith('/api/')) {
-            setChecked(true);
-            return;
-        }
+        if (bypassOnboardingCheck) return;
         fetch('/api/setup/onboarding/status')
             .then((r) => r.json())
             .then((data: { completed?: boolean }) => {
@@ -46,13 +44,13 @@ export function LayoutShell({
                 }
             })
             .catch(() => setChecked(true));
-    }, [pathname, router]);
+    }, [bypassOnboardingCheck, router]);
 
     if (pathname?.startsWith('/onboarding')) {
         return <div className="onboarding-full">{children}</div>;
     }
 
-    if (!checked) {
+    if (!bypassOnboardingCheck && !checked) {
         return (
             <div className="app-shell">
                 <div className="main-content" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh' }}>

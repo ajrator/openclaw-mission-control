@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { signOutAction } from '@/app/actions/auth';
 import { useTheme } from '@/components/ThemeProvider';
-import { type ReactNode, useEffect, useState } from 'react';
+import { type ReactNode, useEffect, useRef, useState } from 'react';
 
 const STORAGE_KEY = 'mission-control-sidebar-collapsed';
 
@@ -70,7 +70,6 @@ const externalLinkIcon = (
 );
 
 export function Sidebar({
-    notionConfigured: _notionConfigured = true,
     dashboardUrl = null,
     mobileOpen = false,
     onRequestClose,
@@ -85,6 +84,7 @@ export function Sidebar({
     const { theme, setTheme } = useTheme();
     const [mounted, setMounted] = useState(false);
     const [collapsed, setCollapsed] = useState(false);
+    const sidebarRef = useRef<HTMLElement>(null);
 
     useEffect(() => setMounted(true), []);
 
@@ -105,11 +105,41 @@ export function Sidebar({
 
     useEffect(() => {
         if (!mobileOpen) return;
+        const prevOverflow = document.body.style.overflow;
+        document.body.style.overflow = 'hidden';
+        const root = sidebarRef.current;
+        const focusables = root?.querySelectorAll<HTMLElement>(
+            'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        );
+        const first = focusables?.[0];
+        first?.focus();
         const onKeyDown = (e: KeyboardEvent) => {
             if (e.key === 'Escape') onRequestClose?.();
+            if (e.key !== 'Tab') return;
+            const currentRoot = sidebarRef.current;
+            if (!currentRoot) return;
+            const tabbables = Array.from(
+                currentRoot.querySelectorAll<HTMLElement>(
+                    'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+                )
+            ).filter((el) => el.offsetParent !== null);
+            if (tabbables.length === 0) return;
+            const firstEl = tabbables[0];
+            const lastEl = tabbables[tabbables.length - 1];
+            const active = document.activeElement as HTMLElement | null;
+            if (e.shiftKey && active === firstEl) {
+                e.preventDefault();
+                lastEl.focus();
+            } else if (!e.shiftKey && active === lastEl) {
+                e.preventDefault();
+                firstEl.focus();
+            }
         };
         window.addEventListener('keydown', onKeyDown);
-        return () => window.removeEventListener('keydown', onKeyDown);
+        return () => {
+            document.body.style.overflow = prevOverflow;
+            window.removeEventListener('keydown', onKeyDown);
+        };
     }, [mobileOpen, onRequestClose]);
 
     const toggleCollapsed = () => {
@@ -127,7 +157,11 @@ export function Sidebar({
     };
 
     return (
-        <aside className={`sidebar ${collapsed ? 'sidebar--collapsed' : ''} ${mobileOpen ? 'sidebar--mobile-open' : ''}`} aria-label="Sidebar">
+        <aside
+            ref={sidebarRef}
+            className={`sidebar ${collapsed ? 'sidebar--collapsed' : ''} ${mobileOpen ? 'sidebar--mobile-open' : ''}`}
+            aria-label="Sidebar"
+        >
             <div className="sidebar-logo">
                 <div className="logo-icon" title="OpenClaw Mission Control">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

@@ -1403,10 +1403,6 @@ details[open] > summary .details-chevron {
   @apply min-h-0;
 }
 
-.kanban-column:has(.kanban-column-title-btn[aria-expanded="false"]) {
-  @apply flex-none;
-}
-
 .kanban-card {
   @apply bg-card dark:bg-card-dark rounded-cleo-lg border border-border dark:border-border-dark p-4 cursor-pointer transition-all hover:border-primary/40 dark:hover:border-primary/40;
 }
@@ -1966,6 +1962,10 @@ details[open] > summary .details-chevron {
 
   .kanban-column {
     @apply min-w-0 w-full basis-auto p-3;
+  }
+
+  .kanban-column:has(.kanban-column-title-btn[aria-expanded="false"]) {
+    @apply flex-none;
   }
 
   .kanban-column-header {

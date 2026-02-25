@@ -11,6 +11,7 @@ import { queryTasksFromNotion, isNotionConfigured } from '@/lib/notion';
 import { getLocalTaskById } from '@/lib/local-tasks';
 
 type TaskInput = { notionPageId?: string; localTaskId?: string; agent?: string };
+type StopMode = 'pause' | 'stop';
 
 function isTaskInputs(t: unknown): t is TaskInput[] {
     return Array.isArray(t) && t.every((x) => x && (typeof (x as TaskInput).notionPageId === 'string' || typeof (x as TaskInput).localTaskId === 'string'));
@@ -25,7 +26,7 @@ export async function POST(request: Request) {
         );
     }
 
-    let body: { taskIds?: string[]; tasks?: unknown };
+    let body: { taskIds?: string[]; tasks?: unknown; mode?: StopMode };
     try {
         body = await request.json();
     } catch {
@@ -33,13 +34,14 @@ export async function POST(request: Request) {
     }
 
     const { taskIds, tasks: tasksParam } = body;
+    const mode: StopMode = body.mode === 'stop' ? 'stop' : 'pause';
     const taskIdList = Array.isArray(taskIds) ? taskIds.filter((id) => typeof id === 'string') : [];
     if (taskIdList.length === 0) {
         return NextResponse.json({ error: 'Missing or empty taskIds' }, { status: 400 });
     }
 
     type ResolvedTask = { taskId: string; agentId: string };
-    let resolved: ResolvedTask[] = [];
+    const resolved: ResolvedTask[] = [];
 
     if (isTaskInputs(tasksParam) && tasksParam.length > 0) {
         for (const t of tasksParam) {
@@ -105,20 +107,22 @@ export async function POST(request: Request) {
                         stopped.push(taskId);
                     }
                 }
-                for (const { taskId, agentId } of resolved) {
-                    const sessionKey = getTaskSessionKey(agentId, taskId);
-                    try {
-                        await sendReq('sessions.delete', { key: sessionKey, deleteTranscript: true });
-                    } catch (delErr) {
-                        const delMsg = delErr instanceof Error ? delErr.message : String(delErr);
-                        if (!/session not found|not found|404/i.test(delMsg)) {
-                            console.warn('[task/stop] sessions.delete failed:', delMsg);
+                if (mode === 'stop') {
+                    for (const { taskId, agentId } of resolved) {
+                        const sessionKey = getTaskSessionKey(agentId, taskId);
+                        try {
+                            await sendReq('sessions.delete', { key: sessionKey, deleteTranscript: true });
+                        } catch (delErr) {
+                            const delMsg = delErr instanceof Error ? delErr.message : String(delErr);
+                            if (!/session not found|not found|404/i.test(delMsg)) {
+                                console.warn('[task/stop] sessions.delete failed:', delMsg);
+                            }
                         }
                     }
                 }
             }
         );
-        return NextResponse.json({ stopped });
+        return NextResponse.json({ stopped, mode });
     } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         return NextResponse.json(
