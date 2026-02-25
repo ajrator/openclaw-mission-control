@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
 import ReactMarkdown from 'react-markdown';
 import { CreateAgentModal } from '@/components/CreateAgentModal';
 import { useAlertConfirm } from '@/components/AlertConfirmProvider';
@@ -56,7 +55,6 @@ interface ChatPanelProps {
 }
 
 export function ChatPanel({ agents, availableModels, initialAgentId }: ChatPanelProps) {
-    const router = useRouter();
     const [selectedAgentId, setSelectedAgentId] = useState<string | null>(() => {
         if (initialAgentId && agents.some((a) => a.id === initialAgentId)) return initialAgentId;
         return agents.length > 0 ? agents[0].id : null;
@@ -70,6 +68,7 @@ export function ChatPanel({ agents, availableModels, initialAgentId }: ChatPanel
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [clearingChat, setClearingChat] = useState(false);
     const [deletingChat, setDeletingChat] = useState(false);
+    const [sessionKey, setSessionKey] = useState<string | null>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const streamingTextRef = useRef('');
     const { showAlert, confirmDialog } = useAlertConfirm();
@@ -95,10 +94,12 @@ export function ChatPanel({ agents, availableModels, initialAgentId }: ChatPanel
             }
             const data = await res.json();
             const raw = data?.messages ?? [];
+            setSessionKey(typeof data?.sessionKey === 'string' ? data.sessionKey : null);
             const list = raw.map(normalizeHistoryMessage).filter((m: ChatMessage | null): m is ChatMessage => m !== null);
             setMessages(list);
         } catch {
             setHistoryError('Could not load history');
+            setSessionKey(null);
             setMessages([]);
         } finally {
             setLoadingHistory(false);
@@ -167,7 +168,6 @@ export function ChatPanel({ agents, availableModels, initialAgentId }: ChatPanel
                                 streamingTextRef.current += payload.errorMessage;
                             }
                             const msg = payload.message;
-                            const state = payload.state;
                             if (msg !== undefined && msg !== null) {
                                 // Gateway sends full message content on each event; always replace to avoid duplicating text during stream
                                 streamingTextRef.current = extractMessageText(msg);
@@ -216,13 +216,13 @@ export function ChatPanel({ agents, availableModels, initialAgentId }: ChatPanel
             const res = await fetch('/api/openclaw/chat/clear', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ agentId }),
+                body: JSON.stringify({ agentId, sessionKey }),
             });
             if (res.ok) {
                 setMessages([]);
                 setGatewayError(null);
                 setHistoryError(null);
-                router.refresh();
+                await loadHistory(agentId);
             } else {
                 const data = await res.json().catch(() => ({}));
                 showAlert(data?.error ?? 'Failed to clear chat');
@@ -245,16 +245,17 @@ export function ChatPanel({ agents, availableModels, initialAgentId }: ChatPanel
         if (!ok) return;
         setDeletingChat(true);
         try {
-            const res = await fetch('/api/openclaw/chat/clear', {
+            const res = await fetch('/api/openclaw/chat/delete', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ agentId }),
+                body: JSON.stringify({ agentId, sessionKey }),
             });
             if (res.ok) {
                 setMessages([]);
                 setGatewayError(null);
                 setHistoryError(null);
-                router.refresh();
+                setSessionKey(null);
+                await loadHistory(agentId);
             } else {
                 const data = await res.json().catch(() => ({}));
                 showAlert(data?.error ?? 'Failed to delete chat');

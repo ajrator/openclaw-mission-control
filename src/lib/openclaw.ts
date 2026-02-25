@@ -35,6 +35,11 @@ export interface OpenClawData {
     availableModels: string[];
 }
 
+export interface AgentSessionKeyInfo {
+    key: string;
+    updatedAt?: number;
+}
+
 /** Model row for Models page: enabled model with provider info and platform link */
 export interface ModelWithProvider {
     id: string;
@@ -289,6 +294,35 @@ export function getGatewayControlUiOrigin(): string {
 /** Default session key for an agent. Must match gateway default: agent:<agentId>:main. */
 export function getDefaultSessionKey(agentId: string): string {
     return `agent:${agentId}:main`;
+}
+
+/** Read known session keys for an agent from local OpenClaw session metadata. */
+export function listAgentSessionKeys(agentId: string): AgentSessionKeyInfo[] {
+    const agent = (agentId ?? '').trim();
+    if (!agent) return [];
+    const sessionsPath = path.join(os.homedir(), '.openclaw', 'agents', agent, 'sessions', 'sessions.json');
+    const parsed = readJsonSafe<Record<string, unknown>>(sessionsPath);
+    if (!parsed || typeof parsed !== 'object') return [];
+    const rows: AgentSessionKeyInfo[] = [];
+    for (const [key, value] of Object.entries(parsed)) {
+        if (!key.startsWith(`agent:${agent}:`)) continue;
+        const updatedAt = (value && typeof value === 'object' && 'updatedAt' in value && typeof (value as { updatedAt?: unknown }).updatedAt === 'number')
+            ? ((value as { updatedAt: number }).updatedAt)
+            : undefined;
+        rows.push({ key, updatedAt });
+    }
+    rows.sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0));
+    return rows;
+}
+
+/** Resolve the best direct-chat session key for an agent (prefers real non-task session keys over the guessed default). */
+export function resolveDirectChatSessionKey(agentId: string, preferred?: string | null): string {
+    const explicit = typeof preferred === 'string' ? preferred.trim() : '';
+    if (explicit) return explicit;
+    const known = listAgentSessionKeys(agentId);
+    const nonTask = known.filter((s) => !s.key.includes(':task:'));
+    if (nonTask.length > 0) return nonTask[0].key;
+    return getDefaultSessionKey(agentId);
 }
 
 /** Session key for a task (one session per task). Use for start, pause/stop, and delete when Done. */
