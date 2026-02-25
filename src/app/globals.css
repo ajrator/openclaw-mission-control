@@ -323,6 +323,10 @@
   @apply flex items-center justify-between gap-4 w-full;
 }
 
+.chat-agent-actions {
+  @apply flex items-center gap-2;
+}
+
 .chat-agent-select {
   @apply min-w-[12rem] px-3 py-2.5 rounded-cleo-lg border border-border dark:border-border-dark bg-card dark:bg-card-dark text-foreground dark:text-foreground-dark text-sm font-sans focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition duration-150;
 }
@@ -1853,11 +1857,11 @@ details[open] > summary .details-chevron {
     @apply flex-col items-stretch gap-2;
   }
 
-  .chat-agent-row > .flex {
+  .chat-agent-actions {
     @apply flex-wrap w-full;
   }
 
-  .chat-agent-row > .flex > button {
+  .chat-agent-actions > button {
     @apply flex-1 min-w-[7.5rem];
   }
 

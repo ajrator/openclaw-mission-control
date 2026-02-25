@@ -350,7 +350,7 @@ export function ChatPanel({ agents, availableModels, initialAgentId }: ChatPanel
                             </option>
                         ))}
                     </select>
-                    <div className="flex items-center gap-2">
+                    <div className="chat-agent-actions">
                         <button
                             type="button"
                             className="btn-outline"
