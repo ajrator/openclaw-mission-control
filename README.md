@@ -12,7 +12,7 @@ Mission Control is the web UI for [OpenClaw](https://github.com/openclaw/opencla
 Run the install script, then start the app:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/<owner>/<repo>/main/scripts/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/ajrator/openclaw-mission-control/main/scripts/install.sh | bash
 cd ~/.openclaw/mission-control && npm run dev
 ```
 
@@ -26,7 +26,7 @@ Open http://localhost:3000. On first run, complete onboarding: the app will inst
 
    ```bash
    mkdir -p ~/.openclaw
-   git clone https://github.com/<owner>/<repo>.git ~/.openclaw/mission-control
+   git clone https://github.com/ajrator/openclaw-mission-control.git ~/.openclaw/mission-control
    cd ~/.openclaw/mission-control
    ```
 
