@@ -1,6 +1,8 @@
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
+import { spawn } from 'child_process';
+import { promises as dns } from 'dns';
 import { sanitizeAgentFallbacks } from '@/lib/agent-models';
 
 export interface Skill {
@@ -40,6 +42,49 @@ export interface AgentSessionKeyInfo {
     updatedAt?: number;
 }
 
+export type OpenClawInstallMethod = 'global' | 'npx_only' | 'unknown';
+export type GatewaySetupState = 'missing' | 'installed_not_configured' | 'configured_not_running' | 'ready';
+
+export interface GatewaySetupDiagnostics {
+    openclawDirExists: boolean;
+    configExists: boolean;
+    gatewayUrl: string | null;
+    npxAvailable: boolean;
+    nodeAvailable: boolean;
+    lastError?: string;
+}
+
+export interface OpenClawInstallDetection {
+    installed: boolean;
+    installMethod: OpenClawInstallMethod;
+    nodeAvailable: boolean;
+    npxAvailable: boolean;
+    lastError?: string;
+}
+
+export interface GatewaySetupStatus {
+    installed: boolean;
+    installMethod: OpenClawInstallMethod;
+    configured: boolean;
+    reachable: boolean;
+    ready: boolean;
+    state: GatewaySetupState;
+    diagnostics: GatewaySetupDiagnostics;
+}
+
+export interface GatewaySetupPreflight {
+    ok: boolean;
+    checks: {
+        node: boolean;
+        npx: boolean;
+        networkLikely: boolean;
+        writableHome: boolean;
+    };
+    message?: string;
+}
+
+let installDetectionCache: { at: number; value: OpenClawInstallDetection } | null = null;
+
 /** Model row for Models page: enabled model with provider info and platform link */
 export interface ModelWithProvider {
     id: string;
@@ -69,6 +114,55 @@ function readJsonSafe<T>(filePath: string): T | null {
     } catch {
         return null;
     }
+}
+
+async function runCommandWithTimeout(
+    cmd: string,
+    args: string[],
+    timeoutMs: number
+): Promise<{ ok: boolean; stdout: string; stderr: string; timedOut: boolean; error?: string }> {
+    return await new Promise((resolve) => {
+        const child = spawn(cmd, args, {
+            stdio: ['ignore', 'pipe', 'pipe'],
+            env: { ...process.env, HOME: os.homedir() },
+            cwd: os.homedir(),
+        });
+        let stdout = '';
+        let stderr = '';
+        let done = false;
+        const timer = setTimeout(() => {
+            if (done) return;
+            done = true;
+            try {
+                child.kill('SIGTERM');
+            } catch {
+                // ignore
+            }
+            resolve({ ok: false, stdout, stderr, timedOut: true, error: 'timeout' });
+        }, timeoutMs);
+        child.stdout?.on('data', (d) => {
+            stdout += String(d ?? '');
+        });
+        child.stderr?.on('data', (d) => {
+            stderr += String(d ?? '');
+        });
+        child.on('error', (err) => {
+            if (done) return;
+            done = true;
+            clearTimeout(timer);
+            resolve({ ok: false, stdout, stderr, timedOut: false, error: err instanceof Error ? err.message : String(err) });
+        });
+        child.on('close', (code) => {
+            if (done) return;
+            done = true;
+            clearTimeout(timer);
+            resolve({ ok: code === 0, stdout, stderr, timedOut: false, error: code === 0 ? undefined : `exit ${code}` });
+        });
+    });
+}
+
+function isLikelyNetworkError(message: string): boolean {
+    return /enotfound|eai_again|network|timed out|timeout|fetch failed|registry/i.test(message);
 }
 
 export function getOpenClawData(): OpenClawData {
@@ -432,4 +526,125 @@ export async function isGatewayReachable(): Promise<boolean> {
     } catch {
         return false;
     }
+}
+
+/** Detect whether OpenClaw appears installed and which install path is available. */
+export async function detectOpenClawInstall(): Promise<OpenClawInstallDetection> {
+    const now = Date.now();
+    if (installDetectionCache && now - installDetectionCache.at < 30000) {
+        return installDetectionCache.value;
+    }
+    const openclawDirExists = fs.existsSync(getOpenClawDir());
+    const configExists = fs.existsSync(getOpenClawConfigPath());
+
+    const nodeCheck = await runCommandWithTimeout('node', ['--version'], 4000);
+    const npxCheck = await runCommandWithTimeout('npx', ['--version'], 4000);
+    const globalOpenclawCheck = await runCommandWithTimeout('openclaw', ['--version'], 5000);
+    const npxOpenclawCheck = (!configExists && npxCheck.ok)
+        ? await runCommandWithTimeout('npx', ['--yes', 'openclaw@latest', '--version'], 6000)
+        : { ok: false, stdout: '', stderr: '', timedOut: false, error: configExists ? 'skipped (config present)' : 'npx unavailable' };
+
+    const installed = configExists || globalOpenclawCheck.ok || npxOpenclawCheck.ok || (openclawDirExists && globalOpenclawCheck.ok);
+    const installMethod: OpenClawInstallMethod =
+        globalOpenclawCheck.ok ? 'global' : (npxOpenclawCheck.ok ? 'npx_only' : 'unknown');
+
+    const errors = [
+        nodeCheck.ok ? null : (nodeCheck.error || nodeCheck.stderr || 'node unavailable'),
+        npxCheck.ok ? null : (npxCheck.error || npxCheck.stderr || 'npx unavailable'),
+        globalOpenclawCheck.ok ? null : (globalOpenclawCheck.error || globalOpenclawCheck.stderr || null),
+        npxOpenclawCheck.ok ? null : (npxOpenclawCheck.error || npxOpenclawCheck.stderr || null),
+    ].filter(Boolean) as string[];
+
+    const detected = {
+        installed,
+        installMethod,
+        nodeAvailable: nodeCheck.ok,
+        npxAvailable: npxCheck.ok,
+        lastError: errors.length > 0 ? errors.join(' | ') : undefined,
+    };
+    installDetectionCache = { at: now, value: detected };
+    return detected;
+}
+
+/** Preflight checks before attempting OpenClaw install. */
+export async function getGatewaySetupPreflight(): Promise<GatewaySetupPreflight> {
+    const nodeCheck = await runCommandWithTimeout('node', ['--version'], 4000);
+    const npxCheck = await runCommandWithTimeout('npx', ['--version'], 4000);
+
+    let writableHome = true;
+    try {
+        const openclawDir = getOpenClawDir();
+        fs.mkdirSync(openclawDir, { recursive: true });
+        const probe = path.join(openclawDir, `.mc-write-test-${Date.now()}`);
+        fs.writeFileSync(probe, 'ok', 'utf-8');
+        fs.unlinkSync(probe);
+    } catch {
+        writableHome = false;
+    }
+
+    let networkLikely = true;
+    try {
+        await dns.lookup('registry.npmjs.org');
+    } catch {
+        networkLikely = false;
+    }
+
+    const ok = nodeCheck.ok && npxCheck.ok && writableHome;
+    const failed: string[] = [];
+    if (!nodeCheck.ok) failed.push('Node.js is not available');
+    if (!npxCheck.ok) failed.push('npx is not available');
+    if (!writableHome) failed.push('Home directory is not writable');
+    if (!networkLikely) failed.push('Network/DNS to npm registry looks unavailable');
+
+    return {
+        ok,
+        checks: {
+            node: nodeCheck.ok,
+            npx: npxCheck.ok,
+            networkLikely,
+            writableHome,
+        },
+        message: failed.length > 0 ? failed.join('. ') : undefined,
+    };
+}
+
+/** Compute the current gateway setup state for onboarding/setup UIs. */
+export async function getGatewaySetupState(): Promise<GatewaySetupStatus> {
+    const install = await detectOpenClawInstall();
+    const gatewayUrl = getGatewayUrl();
+    const configured = gatewayUrl !== null;
+    const reachable = configured ? await isGatewayReachable() : false;
+    const ready = configured && reachable;
+
+    let state: GatewaySetupState = 'missing';
+    if (ready) state = 'ready';
+    else if (configured) state = 'configured_not_running';
+    else if (install.installed) state = 'installed_not_configured';
+    else state = 'missing';
+
+    return {
+        installed: install.installed,
+        installMethod: install.installMethod,
+        configured,
+        reachable,
+        ready,
+        state,
+        diagnostics: {
+            openclawDirExists: fs.existsSync(getOpenClawDir()),
+            configExists: fs.existsSync(getOpenClawConfigPath()),
+            gatewayUrl,
+            npxAvailable: install.npxAvailable,
+            nodeAvailable: install.nodeAvailable,
+            lastError: install.lastError,
+        },
+    };
+}
+
+export function mapSetupErrorCode(message: string): 'INSTALL_TOOLING_MISSING' | 'INSTALL_TIMEOUT' | 'INSTALL_NETWORK_ERROR' | 'CONFIG_WRITE_FAILED' | 'START_FAILED' {
+    const msg = (message ?? '').toLowerCase();
+    if (/enoent|not found|npx unavailable|node unavailable|spawn/i.test(msg)) return 'INSTALL_TOOLING_MISSING';
+    if (/timeout|timed out/i.test(msg)) return 'INSTALL_TIMEOUT';
+    if (isLikelyNetworkError(msg)) return 'INSTALL_NETWORK_ERROR';
+    if (/config|permission|eacces|eprem|write/i.test(msg)) return 'CONFIG_WRITE_FAILED';
+    return 'START_FAILED';
 }

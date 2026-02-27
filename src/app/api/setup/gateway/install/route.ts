@@ -3,7 +3,14 @@ import fs from 'fs';
 import os from 'os';
 import crypto from 'crypto';
 import { spawn } from 'child_process';
-import { getOpenClawDir, getOpenClawConfigPath, getGatewayUrl } from '@/lib/openclaw';
+import {
+    getOpenClawDir,
+    getOpenClawConfigPath,
+    getGatewayUrl,
+    getGatewaySetupPreflight,
+    getGatewaySetupState,
+    mapSetupErrorCode,
+} from '@/lib/openclaw';
 
 /**
  * POST /api/setup/gateway/install
@@ -12,8 +19,24 @@ import { getOpenClawDir, getOpenClawConfigPath, getGatewayUrl } from '@/lib/open
  * Security: only runs fixed command (npx openclaw@latest doctor), no user input.
  */
 export async function POST() {
+    const stateBefore = await getGatewaySetupState();
     const openclawDir = getOpenClawDir();
     const configPath = getOpenClawConfigPath();
+
+    const preflight = await getGatewaySetupPreflight();
+    if (!preflight.ok) {
+        const code = 'INSTALL_TOOLING_MISSING';
+        return NextResponse.json(
+            {
+                ok: false,
+                code,
+                step: 'preflight',
+                hint: preflight.message ?? 'Install requires Node.js, npx, and writable home directory.',
+                preflight,
+            },
+            { status: 400 }
+        );
+    }
 
     if (!fs.existsSync(openclawDir)) {
         fs.mkdirSync(openclawDir, { recursive: true });
@@ -27,7 +50,9 @@ export async function POST() {
     if (fs.existsSync(configPath)) {
         const gatewayUrl = getGatewayUrl();
         if (gatewayUrl) {
-            return NextResponse.json({ ok: true, message: 'Already configured' });
+            const stateAfter = await getGatewaySetupState();
+            console.info('[setup.gateway.install]', { state_before: stateBefore.state, action: 'install', state_after: stateAfter.state, error_code: null });
+            return NextResponse.json({ ok: true, message: 'Already configured', stateAfterAttempt: stateAfter });
         }
     }
 
@@ -52,11 +77,28 @@ export async function POST() {
         });
     } catch (err) {
         const message = err instanceof Error ? err.message : 'Install failed';
-        return NextResponse.json({ ok: false, error: message }, { status: 500 });
+        const code = mapSetupErrorCode(message);
+        console.warn('[setup.gateway.install]', { state_before: stateBefore.state, action: 'install', state_after: stateBefore.state, error_code: code });
+        return NextResponse.json(
+            {
+                ok: false,
+                error: message,
+                code,
+                step: 'install_openclaw',
+                hint: code === 'INSTALL_NETWORK_ERROR'
+                    ? 'Check internet access and retry.'
+                    : code === 'INSTALL_TIMEOUT'
+                        ? 'Install timed out. Retry once connectivity is stable.'
+                        : 'Install requires Node.js and npx in PATH.',
+            },
+            { status: 500 }
+        );
     }
 
     if (fs.existsSync(configPath) && getGatewayUrl()) {
-        return NextResponse.json({ ok: true });
+        const stateAfter = await getGatewaySetupState();
+        console.info('[setup.gateway.install]', { state_before: stateBefore.state, action: 'install', state_after: stateAfter.state, error_code: null });
+        return NextResponse.json({ ok: true, stateAfterAttempt: stateAfter });
     }
 
     const port = 18789;
@@ -74,11 +116,28 @@ export async function POST() {
             },
         },
     };
-    fs.writeFileSync(configPath, JSON.stringify(minimalConfig, null, 2) + '\n', 'utf-8');
     try {
-        fs.chmodSync(configPath, 0o600);
-    } catch {
-        /* ignore */
+        fs.writeFileSync(configPath, JSON.stringify(minimalConfig, null, 2) + '\n', 'utf-8');
+        try {
+            fs.chmodSync(configPath, 0o600);
+        } catch {
+            /* ignore */
+        }
+    } catch (err) {
+        const message = err instanceof Error ? err.message : 'Could not write openclaw.json';
+        console.warn('[setup.gateway.install]', { state_before: stateBefore.state, action: 'install', state_after: stateBefore.state, error_code: 'CONFIG_WRITE_FAILED' });
+        return NextResponse.json(
+            {
+                ok: false,
+                error: message,
+                code: 'CONFIG_WRITE_FAILED',
+                step: 'write_config',
+                hint: 'Mission Control could not write ~/.openclaw/openclaw.json. Check file permissions and retry.',
+            },
+            { status: 500 }
+        );
     }
-    return NextResponse.json({ ok: true });
+    const stateAfter = await getGatewaySetupState();
+    console.info('[setup.gateway.install]', { state_before: stateBefore.state, action: 'install', state_after: stateAfter.state, error_code: null });
+    return NextResponse.json({ ok: true, usedFallbackConfig: true, stateAfterAttempt: stateAfter });
 }

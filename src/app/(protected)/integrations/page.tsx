@@ -5,6 +5,7 @@ import { hasOpenAICodexProfile, isOpenAIOAuthEnvSet, getOpenAICodexProfileAccoun
 import { NotionIntegrationCard } from '@/components/NotionIntegrationCard';
 import { NotionSelectDatabase } from '@/components/NotionSelectDatabase';
 import { OpenAIIntegrationCard } from '@/components/OpenAIIntegrationCard';
+import { GatewaySetupCard } from '@/components/GatewaySetupCard';
 
 type Props = { searchParams: Promise<{ notion?: string; step?: string; openai?: string; from?: string }> };
 
@@ -68,6 +69,7 @@ export default async function IntegrationsPage({ searchParams }: Props) {
                 </div>
             ) : (
                 <div className="integrations-grid">
+                    <GatewaySetupCard />
                     {showNotionIntegration && (
                         <NotionIntegrationCard
                             connected={notionConnected}
