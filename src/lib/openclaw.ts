@@ -51,6 +51,7 @@ export interface GatewaySetupDiagnostics {
     gatewayUrl: string | null;
     npxAvailable: boolean;
     nodeAvailable: boolean;
+    controlUiConfigured: boolean;
     lastError?: string;
 }
 
@@ -385,6 +386,67 @@ export function getGatewayControlUiOrigin(): string {
     return typeof first === 'string' && first.length > 0 ? first : process.env.MISSION_CONTROL_ORIGIN ?? 'http://localhost:3000';
 }
 
+/** Whether gateway.controlUi is configured for token-auth Control UI usage from Mission Control. */
+export function isGatewayControlUiConfigured(): boolean {
+    const config = readJsonSafe<Record<string, unknown>>(getConfigPath());
+    const controlUi = (config?.gateway as { controlUi?: { allowedOrigins?: string[]; dangerouslyDisableDeviceAuth?: boolean } } | undefined)?.controlUi;
+    if (!controlUi || typeof controlUi !== 'object') return false;
+    if (controlUi.dangerouslyDisableDeviceAuth !== true) return false;
+    const allowed = Array.isArray(controlUi.allowedOrigins) ? controlUi.allowedOrigins : [];
+    return allowed.some((x) => typeof x === 'string' && x.trim().length > 0);
+}
+
+/**
+ * Ensure gateway.controlUi contains at least one allowed origin and disables device auth for local Control UI.
+ * Returns whether the config was changed.
+ */
+export function ensureGatewayControlUiConfig(origins: string[]): { changed: boolean; error?: string } {
+    const configPath = getConfigPath();
+    const config = readJsonSafe<Record<string, unknown>>(configPath);
+    if (!config || typeof config !== 'object') return { changed: false, error: 'openclaw.json not found' };
+
+    if (!config.gateway || typeof config.gateway !== 'object') {
+        (config as Record<string, unknown>).gateway = {};
+    }
+    const gateway = config.gateway as Record<string, unknown>;
+    if (!gateway.controlUi || typeof gateway.controlUi !== 'object') {
+        gateway.controlUi = {};
+    }
+    const controlUi = gateway.controlUi as Record<string, unknown>;
+
+    const currentAllowed = Array.isArray(controlUi.allowedOrigins)
+        ? (controlUi.allowedOrigins as unknown[]).filter((x): x is string => typeof x === 'string').map((x) => x.trim()).filter(Boolean)
+        : [];
+    const desiredAllowed = Array.from(
+        new Set(
+            [...currentAllowed, ...origins.map((x) => x.trim()).filter(Boolean)]
+        )
+    );
+
+    let changed = false;
+    if (controlUi.dangerouslyDisableDeviceAuth !== true) {
+        controlUi.dangerouslyDisableDeviceAuth = true;
+        changed = true;
+    }
+    if (JSON.stringify(currentAllowed) !== JSON.stringify(desiredAllowed)) {
+        controlUi.allowedOrigins = desiredAllowed;
+        changed = true;
+    }
+    if (!changed) return { changed: false };
+
+    try {
+        fs.writeFileSync(configPath, JSON.stringify(config, null, 2) + '\n', 'utf-8');
+        try {
+            fs.chmodSync(configPath, 0o600);
+        } catch {
+            // ignore
+        }
+        return { changed: true };
+    } catch (err) {
+        return { changed: false, error: err instanceof Error ? err.message : 'write failed' };
+    }
+}
+
 /** Default session key for an agent. Must match gateway default: agent:<agentId>:main. */
 export function getDefaultSessionKey(agentId: string): string {
     return `agent:${agentId}:main`;
@@ -615,6 +677,7 @@ export async function getGatewaySetupState(): Promise<GatewaySetupStatus> {
     const configured = gatewayUrl !== null;
     const reachable = configured ? await isGatewayReachable() : false;
     const ready = configured && reachable;
+    const controlUiConfigured = isGatewayControlUiConfigured();
 
     let state: GatewaySetupState = 'missing';
     if (ready) state = 'ready';
@@ -635,6 +698,7 @@ export async function getGatewaySetupState(): Promise<GatewaySetupStatus> {
             gatewayUrl,
             npxAvailable: install.npxAvailable,
             nodeAvailable: install.nodeAvailable,
+            controlUiConfigured,
             lastError: install.lastError,
         },
     };

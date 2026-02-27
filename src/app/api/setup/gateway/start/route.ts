@@ -1,7 +1,27 @@
 import { NextResponse } from 'next/server';
 import os from 'os';
 import { spawn } from 'child_process';
-import { getGatewayUrl, getOpenClawDir, getGatewaySetupState, isGatewayReachable } from '@/lib/openclaw';
+import {
+    ensureGatewayControlUiConfig,
+    getGatewayUrl,
+    getOpenClawDir,
+    getGatewaySetupState,
+    isGatewayReachable,
+} from '@/lib/openclaw';
+
+function computeMissionControlOrigins(req: Request): string[] {
+    const origins = new Set<string>();
+    const configured = process.env.MISSION_CONTROL_ORIGIN?.trim();
+    if (configured) origins.add(configured);
+    const headerOrigin = req.headers.get('origin')?.trim();
+    if (headerOrigin) origins.add(headerOrigin);
+    const host = req.headers.get('x-forwarded-host')?.trim() || req.headers.get('host')?.trim();
+    const proto = req.headers.get('x-forwarded-proto')?.trim() || 'http';
+    if (host) origins.add(`${proto}://${host}`);
+    origins.add('http://localhost:3000');
+    origins.add('http://127.0.0.1:3000');
+    return Array.from(origins);
+}
 
 /**
  * POST /api/setup/gateway/start
@@ -9,7 +29,7 @@ import { getGatewayUrl, getOpenClawDir, getGatewaySetupState, isGatewayReachable
  * Returns after starting; client should poll /api/setup/gateway/status until reachable.
  * Security: only runs fixed command, no user input.
  */
-export async function POST() {
+export async function POST(req: Request) {
     const stateBefore = await getGatewaySetupState();
     if (stateBefore.state === 'missing') {
         return NextResponse.json(
@@ -51,10 +71,30 @@ export async function POST() {
         );
     }
 
+    const healBeforeStart = ensureGatewayControlUiConfig(computeMissionControlOrigins(req));
+    if (healBeforeStart.error) {
+        return NextResponse.json(
+            {
+                ok: false,
+                code: 'CONFIG_WRITE_FAILED',
+                step: 'patch_control_ui',
+                hint: 'Mission Control could not update Control UI settings in ~/.openclaw/openclaw.json.',
+                error: healBeforeStart.error,
+                stateAfterAttempt: stateBefore,
+            },
+            { status: 500 }
+        );
+    }
+
     if (await isGatewayReachable()) {
         const stateAfter = await getGatewaySetupState();
         console.info('[setup.gateway.start]', { state_before: stateBefore.state, action: 'start', state_after: stateAfter.state, error_code: null });
-        return NextResponse.json({ ok: true, message: 'Already running', stateAfterAttempt: stateAfter });
+        return NextResponse.json({
+            ok: true,
+            message: healBeforeStart.changed ? 'Already running (Control UI settings updated)' : 'Already running',
+            repairedControlUi: healBeforeStart.changed,
+            stateAfterAttempt: stateAfter,
+        });
     }
 
     try {

@@ -4,6 +4,7 @@ import os from 'os';
 import crypto from 'crypto';
 import { spawn } from 'child_process';
 import {
+    ensureGatewayControlUiConfig,
     getOpenClawDir,
     getOpenClawConfigPath,
     getGatewayUrl,
@@ -12,13 +13,30 @@ import {
     mapSetupErrorCode,
 } from '@/lib/openclaw';
 
+function computeMissionControlOrigins(req: Request): string[] {
+    const origins = new Set<string>();
+    const configured = process.env.MISSION_CONTROL_ORIGIN?.trim();
+    if (configured) origins.add(configured);
+
+    const headerOrigin = req.headers.get('origin')?.trim();
+    if (headerOrigin) origins.add(headerOrigin);
+
+    const host = req.headers.get('x-forwarded-host')?.trim() || req.headers.get('host')?.trim();
+    const proto = req.headers.get('x-forwarded-proto')?.trim() || 'http';
+    if (host) origins.add(`${proto}://${host}`);
+
+    origins.add('http://localhost:3000');
+    origins.add('http://127.0.0.1:3000');
+    return Array.from(origins);
+}
+
 /**
  * POST /api/setup/gateway/install
  * Ensures ~/.openclaw exists and openclaw.json has gateway config. Runs npx openclaw@latest doctor
  * to initialize if needed; if config still missing, writes minimal secure defaults.
  * Security: only runs fixed command (npx openclaw@latest doctor), no user input.
  */
-export async function POST() {
+export async function POST(req: Request) {
     const stateBefore = await getGatewaySetupState();
     const openclawDir = getOpenClawDir();
     const configPath = getOpenClawConfigPath();
@@ -50,9 +68,27 @@ export async function POST() {
     if (fs.existsSync(configPath)) {
         const gatewayUrl = getGatewayUrl();
         if (gatewayUrl) {
+            const heal = ensureGatewayControlUiConfig(computeMissionControlOrigins(req));
+            if (heal.error) {
+                return NextResponse.json(
+                    {
+                        ok: false,
+                        code: 'CONFIG_WRITE_FAILED',
+                        step: 'patch_control_ui',
+                        hint: 'Could not update Control UI settings in ~/.openclaw/openclaw.json',
+                        error: heal.error,
+                    },
+                    { status: 500 }
+                );
+            }
             const stateAfter = await getGatewaySetupState();
             console.info('[setup.gateway.install]', { state_before: stateBefore.state, action: 'install', state_after: stateAfter.state, error_code: null });
-            return NextResponse.json({ ok: true, message: 'Already configured', stateAfterAttempt: stateAfter });
+            return NextResponse.json({
+                ok: true,
+                message: heal.changed ? 'Already configured (Control UI settings updated)' : 'Already configured',
+                repairedControlUi: heal.changed,
+                stateAfterAttempt: stateAfter,
+            });
         }
     }
 
@@ -103,7 +139,7 @@ export async function POST() {
 
     const port = 18789;
     const token = crypto.randomBytes(24).toString('hex');
-    const origin = process.env.MISSION_CONTROL_ORIGIN || 'http://localhost:3000';
+    const allowedOrigins = computeMissionControlOrigins(req);
     const minimalConfig = {
         gateway: {
             port,
@@ -111,7 +147,7 @@ export async function POST() {
             bind: 'loopback',
             auth: { mode: 'token', token },
             controlUi: {
-                allowedOrigins: [origin],
+                allowedOrigins,
                 dangerouslyDisableDeviceAuth: true,
             },
         },
