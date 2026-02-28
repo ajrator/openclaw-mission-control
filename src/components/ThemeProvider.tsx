@@ -11,83 +11,75 @@ interface ThemeContextType {
 }
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
+const STORAGE_KEY = 'openclaw-theme';
+
+function isTheme(value: unknown): value is Theme {
+    return value === 'light' || value === 'dark' || value === 'system';
+}
+
+function getSystemTheme(): 'light' | 'dark' {
+    if (typeof window === 'undefined') return 'light';
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+}
+
+function applyTheme(theme: Theme): 'light' | 'dark' {
+    const resolved = theme === 'system' ? getSystemTheme() : theme;
+    const root = window.document.documentElement;
+    root.classList.remove('light', 'dark');
+    root.classList.add(resolved);
+    root.style.colorScheme = resolved;
+    return resolved;
+}
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-    const [theme, setTheme] = useState<Theme>('system');
-    const [resolvedTheme, setResolvedTheme] = useState<'light' | 'dark'>('dark');
+    const [theme, setThemeState] = useState<Theme>('system');
+    const [resolvedTheme, setResolvedTheme] = useState<'light' | 'dark'>('light');
 
-    // Load saved theme on mount
+    // Initialize from storage and apply immediately on mount.
     useEffect(() => {
+        let initial: Theme = 'system';
         try {
-            const savedTheme = localStorage.getItem('openclaw-theme') as Theme | null;
-            if (savedTheme) {
-                setTheme(savedTheme);
-            }
+            const saved = localStorage.getItem(STORAGE_KEY);
+            if (isTheme(saved)) initial = saved;
         } catch {
             // ignore
         }
+        setThemeState(initial);
+        setResolvedTheme(applyTheme(initial));
     }, []);
 
-    // Update DOM when theme changes
+    // Keep DOM + storage synchronized whenever selected theme changes.
     useEffect(() => {
+        if (typeof window === 'undefined') return;
         try {
-            localStorage.setItem('openclaw-theme', theme);
+            localStorage.setItem(STORAGE_KEY, theme);
         } catch {
             // ignore
         }
-
-        const root = window.document.documentElement;
-        const isDarkOS = window.matchMedia('(prefers-color-scheme: dark)').matches;
-
-        root.classList.remove('light', 'dark');
-
-        if (theme === 'system') {
-            const systemTheme = isDarkOS ? 'dark' : 'light';
-            root.classList.add(systemTheme);
-            setResolvedTheme(systemTheme);
-        } else {
-            root.classList.add(theme);
-            setResolvedTheme(theme);
-        }
+        setResolvedTheme(applyTheme(theme));
     }, [theme]);
 
-    // Listen for system theme changes
+    // In system mode, react to OS preference changes.
     useEffect(() => {
         if (theme !== 'system') return;
-
         const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-        const handleChange = (e: MediaQueryListEvent) => {
-            const root = window.document.documentElement;
-            const systemTheme = e.matches ? 'dark' : 'light';
+        const onChange = () => setResolvedTheme(applyTheme('system'));
 
-            root.classList.remove('light', 'dark');
-            root.classList.add(systemTheme);
-            setResolvedTheme(systemTheme);
-        };
-
-        mediaQuery.addEventListener('change', handleChange);
-        return () => mediaQuery.removeEventListener('change', handleChange);
+        if (typeof mediaQuery.addEventListener === 'function') {
+            mediaQuery.addEventListener('change', onChange);
+            return () => mediaQuery.removeEventListener('change', onChange);
+        }
+        mediaQuery.addListener(onChange);
+        return () => mediaQuery.removeListener(onChange);
     }, [theme]);
 
-    // Prevent hydration mismatch flash by hiding until mounted
-    const [mounted, setMounted] = useState(false);
-    useEffect(() => setMounted(true), []);
-
-    const contextValue = { theme, setTheme, resolvedTheme };
-
-    if (!mounted) {
-        // Return an invisible wrapper during SSR to match structure without flashing wrong theme, but STILL provide context
-        return (
-            <div style={{ visibility: 'hidden' }}>
-                <ThemeContext.Provider value={contextValue}>
-                    {children}
-                </ThemeContext.Provider>
-            </div>
-        );
-    }
+    const setTheme = (next: Theme) => {
+        setThemeState(next);
+        if (typeof window !== 'undefined') setResolvedTheme(applyTheme(next));
+    };
 
     return (
-        <ThemeContext.Provider value={contextValue}>
+        <ThemeContext.Provider value={{ theme, setTheme, resolvedTheme }}>
             {children}
         </ThemeContext.Provider>
     );
@@ -100,3 +92,4 @@ export function useTheme() {
     }
     return context;
 }
+

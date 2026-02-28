@@ -4,6 +4,7 @@ import './globals.css';
 import { LayoutShell } from '@/components/LayoutShell';
 import { ThemeProvider } from '@/components/ThemeProvider';
 import { AlertConfirmProvider } from '@/components/AlertConfirmProvider';
+import { PerformanceMeasureGuard } from '@/components/PerformanceMeasureGuard';
 import { getDashboardUrl } from '@/lib/openclaw';
 import { isNotionConfigured } from '@/lib/notion';
 import { auth } from '@/auth';
@@ -32,10 +33,11 @@ export default async function RootLayout({
   const dashboardUrl = getDashboardUrl();
 
   return (
-    <html lang="en" className={`${inter.variable} suppressHydrationWarning`}>
+    <html lang="en" className={inter.variable} suppressHydrationWarning>
       <body>
         <ThemeProvider>
           <AlertConfirmProvider>
+            {process.env.NODE_ENV === 'development' ? <PerformanceMeasureGuard /> : null}
             {session?.user ? (
               <LayoutShell notionConfigured={notionConfigured} dashboardUrl={dashboardUrl}>
                 {children}
